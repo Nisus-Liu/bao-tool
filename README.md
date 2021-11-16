@@ -21,3 +21,9 @@ npm run build
 // 启动 electron
 npm run start
 ```
+
+## FAQ
+
+- Vue cli Electron plugin
+
+https://nklayman.github.io/vue-cli-plugin-electron-builder/guide/#installation

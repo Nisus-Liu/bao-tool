@@ -1,5 +1,7 @@
 const { app, BrowserWindow } = require('electron');
 
+const INDEX = './dist/index.html'
+
 function createWindow () {
   // Create the browser window.
   const win = new BrowserWindow({
@@ -12,7 +14,7 @@ function createWindow () {
 
   // and load the index.html of the app.
   console.log(process.cwd());
-  win.loadFile('index.html');
+  win.loadFile(INDEX);
 
   // Open the DevTools.
   win.webContents.openDevTools();
