@@ -1,11 +1,20 @@
 <template>
-  <div id="nav">
-    <router-link to="/">Home</router-link> |
-    <router-link to="/about">About</router-link>
-  </div>
-  <router-view/>
+  <!--<div id="nav">-->
+  <!--  <router-link to="/">Home</router-link> |-->
+  <!--  <router-link to="/about">About</router-link>-->
+  <!--</div>-->
+  <!--<router-view/>-->
+  <BasicLayout></BasicLayout>
 </template>
-
+<script lang="ts">
+import BasicLayout from "@/views/BasicLayout.vue";
+import { defineComponent } from 'vue';
+export default defineComponent({
+  components: {
+    BasicLayout
+  }
+})
+</script>
 <style lang="scss">
 #app {
   font-family: Avenir, Helvetica, Arial, sans-serif;
