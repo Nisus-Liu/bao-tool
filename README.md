@@ -10,6 +10,14 @@ What used:
 * Webpack
 * Scss
 
+```
+yarn global add @vue/cli
+vue create bao-tool
+// 接下来, 用 Vue cli Electron plugin 继承 electron
+vue add electron-builder
+```
+
+
 Tutorial:
 [Vue3+Electron整合方式](https://zhuanlan.zhihu.com/p/181015456)
 
