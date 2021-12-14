@@ -36,6 +36,77 @@ class JsonField {
   }
 }
 
+class Token {
+  // 描述
+  desc: string;
+  constructor(serialized: string) {
+    this.desc = serialized;
+  }
+}
+
+enum Tokens {
+  // {
+  OBJECT_START = new Token('{'),
+  // }
+  OBJECT_END = new Token('}'),
+  // [
+  ARRAY_START = new Token('['),
+  // ]
+  ARRAY_END = new Token(']'),
+  // "
+  DBQ = new Token('"'),
+  // '
+  SQ = new Token("'"),
+  // :
+  KV_SEP = new Token(":"),
+  BLOCK_CMT = new Token("/*...*/"),
+  LINE_CMT = new Token("//..."),
+  YAML_LINE_CMT = new Token("#..."),
+  ELE_SEP = new Token(','),
+}
+
+class JsonReadContext {
+  static TYPE_ROOT = 0;
+  static TYPE_OBJECT = 1;
+  static TYPE_ARRAY = 2;
+  parent: JsonReadContext;
+  child: JsonReadContext;
+  type: number;
+
+  constructor(parent: JsonReadContext, type: number) {
+    this.parent = parent;
+    this.type = type;
+    if (parent != null) {
+      parent.child = this;
+    }
+  }
+
+  static createRootContext() {
+    // @ts-ignore
+    return new JsonReadContext(null, JsonReadContext.TYPE_ROOT);
+  }
+
+  static createObjectContext() {
+    return new JsonReadContext(this, JsonReadContext.TYPE_OBJECT);
+  }
+
+  static createArrayContext() {
+    return new JsonReadContext(this, JsonReadContext.TYPE_ARRAY);
+  }
+
+  inObject() {
+    return this.type === JsonReadContext.TYPE_OBJECT;
+  }
+
+  inArray() {
+    return this.type === JsonReadContext.TYPE_ARRAY;
+  }
+
+  isRoot() {
+    return this.type === JsonReadContext.TYPE_ROOT;
+  }
+}
+
 class Lexer {
   inputPtr: number = 0
   inputBuffer: string
@@ -43,11 +114,62 @@ class Lexer {
   textBuffer: Text
   currInputRow: number = 0;
   currInputRowStart: number = 0;
+  closed: boolean = false;
+  lastToken: Token|null = null;
+  currToken: Token|null = null;
+  ctx: JsonReadContext;
 
   constructor(inputBuffer: string) {
     this.inputBuffer = inputBuffer;
     this.inputEnd = inputBuffer.length;
     this.textBuffer = new Text(inputBuffer);
+    this.ctx = JsonReadContext.createRootContext();
+  }
+
+  nextToken() {
+    let i = this.skipWsOrEnd();
+    // EOF
+    if (i < 0) {
+      // 关闭
+      this.close();
+      return (this.currToken = null);
+    }
+
+    this.lastToken = this.currToken;
+    this.currToken = null;
+    let t;
+    switch (i) {
+      case '{':
+        t = Tokens.ARRAY_START;
+        break;
+      case '}':
+        t = Tokens.OBJECT_END;
+        break;
+      case '[':
+        t = Tokens.ARRAY_START;
+        break;
+      case ']':
+        t = Tokens.ARRAY_END;
+        break;
+      case ':':
+        t = Tokens.KV_SEP;
+        break;
+      case '/':
+        t = Tokens.LINE_CMT;
+        break;
+      case '#':
+        t = Tokens.YAML_LINE_CMT;
+        break;
+      case '*':
+      case ',':
+
+      default:
+
+        break;
+    }
+
+    this.currToken = t;
+    return t;
   }
 
   skipWsOrEnd() {
@@ -106,6 +228,17 @@ class Lexer {
   getCurrentLocation() {
     let col = this.inputPtr - this.currInputRowStart + 1; // 1-based
     return [this.currInputRow, col - 1];
+  }
+
+  close() {
+    if (!this.closed) {
+      // 19-Jan-2018, tatu: as per [core#440] need to ensure no more data assumed available
+      this.inputPtr = Math.max(this.inputPtr, this.inputEnd);
+      this.closed = true;
+
+      // 释放 buff 引用
+      this.inputBuffer = '';
+    }
   }
 }
 
