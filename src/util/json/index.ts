@@ -1,3 +1,26 @@
+
+
+class CharTypes {
+  static LATIN1 = (() => {
+    console.log('CharTypes 执行....')
+    /* 96 would do for most cases (backslash is ASCII 94)
+         * but if we want to do lookups by raw bytes it's better
+         * to have full table
+         */
+    const table = [];
+    // Control chars and non-space white space are not allowed unquoted
+    for (let i = 0; i < 32; ++i) {
+      table[i] = -1;
+    }
+    // And then string end and quote markers are special too
+    table['"'.charCodeAt(0)] = 1;
+    table['\\'.charCodeAt(0)] = 1;
+    // sInputCodes = table;
+    return table;
+  })
+
+}
+
 const
     SPACE = ' ',
     TAB = '\t',
@@ -86,11 +109,11 @@ class JsonReadContext {
     return new JsonReadContext(null, JsonReadContext.TYPE_ROOT);
   }
 
-  static createObjectContext() {
+  createObjectContext() {
     return new JsonReadContext(this, JsonReadContext.TYPE_OBJECT);
   }
 
-  static createArrayContext() {
+  createArrayContext() {
     return new JsonReadContext(this, JsonReadContext.TYPE_ARRAY);
   }
 
@@ -140,16 +163,26 @@ class Lexer {
     let t;
     switch (i) {
       case '{':
-        t = Tokens.ARRAY_START;
+        t = Tokens.OBJECT_START;
+        this.ctx = this.ctx.createObjectContext();
         break;
       case '}':
+        if (!this.ctx.inObject()) {
+          this.reportError("'{'和'}'不配对");
+        }
         t = Tokens.OBJECT_END;
+        this.ctx = this.ctx.parent;
         break;
       case '[':
         t = Tokens.ARRAY_START;
+        this.ctx = this.ctx.createArrayContext();
         break;
       case ']':
+        if (!this.ctx.inArray()) {
+          this.reportError("'['和']'不配对");
+        }
         t = Tokens.ARRAY_END;
+        this.ctx = this.ctx.parent;
         break;
       case ':':
         t = Tokens.KV_SEP;
@@ -267,50 +300,50 @@ class Text {
     this.len = len;
   }
 
-  advance(len = 1) {
-    let oldPos = this.pos;
-    this.pos += len;
-    return this.value.substr(oldPos, len);
-  }
-
-  // 正则匹配开头部分, 自动位移被匹配的长度
-  lex(reg: RegExp) {
-    let exec = reg.exec(this.value.substr(this.pos));
-    if (exec) {
-      this.pos += exec[0].length;
-      return exec;
-    }
-    return null;
-  }
-
-  // 剔除空白符, 空白行
-  trimBlank() {
-    this.lex(/\s*/)
-  }
-
-  lookAhead(len: number = 1) {
-    return this.value.substr(this.pos, len);
-  }
-
-  // pos 后退
-  back(len: number) {
-    let s = this.lookBack(len);
-    this.pos -= s.length;
-    return s;
-  }
-
-  lookBack(len: number) {
-    let from = this.pos - len;
-    return from >= 0 ? this.value.substr(from, len) : '';
-  }
-
-  isEmpty() {
-    return this.value.length == 0 || this.pos >= this.value.length;
-  }
-
-  getPos() {
-    return this.pos;
-  }
+  // advance(len = 1) {
+  //   let oldPos = this.pos;
+  //   this.pos += len;
+  //   return this.value.substr(oldPos, len);
+  // }
+  //
+  // // 正则匹配开头部分, 自动位移被匹配的长度
+  // lex(reg: RegExp) {
+  //   let exec = reg.exec(this.value.substr(this.pos));
+  //   if (exec) {
+  //     this.pos += exec[0].length;
+  //     return exec;
+  //   }
+  //   return null;
+  // }
+  //
+  // // 剔除空白符, 空白行
+  // trimBlank() {
+  //   this.lex(/\s*/)
+  // }
+  //
+  // lookAhead(len: number = 1) {
+  //   return this.value.substr(this.pos, len);
+  // }
+  //
+  // // pos 后退
+  // back(len: number) {
+  //   let s = this.lookBack(len);
+  //   this.pos -= s.length;
+  //   return s;
+  // }
+  //
+  // lookBack(len: number) {
+  //   let from = this.pos - len;
+  //   return from >= 0 ? this.value.substr(from, len) : '';
+  // }
+  //
+  // isEmpty() {
+  //   return this.value.length == 0 || this.pos >= this.value.length;
+  // }
+  //
+  // getPos() {
+  //   return this.pos;
+  // }
 
 }
 
@@ -419,7 +452,7 @@ const states = {
   // 行尾注释
   // 行尾注释会和块注释合并.
   tail_comment: (buff: Text, ctx: any) => {
-    let exec = buff.lex(/\/\/\s*(.*)\n/);
+    const exec = buff.lex(/\/\/\s*(.*)\n/);
     Asserts.nonNull(exec, "行注释必须跟随 \\n, 否则后面没有非空内容, 正常闭合: " + buff.getPos());
     let cmt = exec && exec[1];
     let oldCmt = (ctx.current as JsonField).comment;
@@ -440,11 +473,16 @@ const states = {
 }
 
 
+// ----------------------
+console.log(CharTypes.LATIN1);
+console.log(CharTypes.LATIN1);
+console.log(CharTypes.LATIN1);
+
 let ss = "{\n" +
     "\"a\": 1,\n" +
     "\"b\": \"xx\"\n" +
     "}"
 
-const buff = new Text(ss);
-states.start(buff, Ctx);
-console.log(Ctx)
+// const buff = new Text(ss);
+// states.start(buff, Ctx);
+// console.log(Ctx)
