@@ -9,6 +9,7 @@ function char(str:string) {
 }
 
 class JsonToken {
+  static NULL = new JsonToken("NULL");
   static LPAREN = new JsonToken("(");
   static RPAREN = new JsonToken(")");
   static LBRACE = new JsonToken("{");
@@ -17,6 +18,7 @@ class JsonToken {
   static RBRACKET = new JsonToken("]");
   static COMMA = new JsonToken(",");
   static COLON = new JsonToken(":");
+  static LITERAL_STRING = new JsonToken("s")
 
   name:string;
 
@@ -33,7 +35,7 @@ class JsonLexer {
   bp;
   len;
   ch = -1;
-  _token:JsonToken|null = null;
+  _token: JsonToken;
 
   constructor(input:string) {
     this.text = input;
@@ -47,7 +49,11 @@ class JsonLexer {
   }
 
   token() {
+    return this._token;
+  }
 
+  tokenName() {
+    return this._token.name;
   }
 
   skipWhitespace() {
@@ -85,13 +91,39 @@ class JsonLexer {
   }
 
   stringValue() {
+    return "todo"
+  }
 
+  info() {
+    let buf = '';
+
+    let line = 1;
+    let column = 1;
+    for (let i = 0; i < this.bp; ++i, column++) {
+      const ch = this.text.charAt(i);
+      if (ch == '\n') {
+        column = 1;
+        line++;
+      }
+    }
+
+    buf += "pos " + this.bp +
+        ", line " + line
+        + ", column "+column;
+
+    if (this.text.length() < 65535) {
+      buf += this.text;
+    } else {
+      buf += this.text.substring(0, 65535);
+    }
+
+    return buf;
   }
 }
 
 class JsonParser {
   input;
-  lexer;
+  lexer: JsonLexer;
 
   constructor(input:string) {
     this.lexer = new JsonLexer(input);
@@ -110,6 +142,27 @@ class JsonParser {
   }
 
   parseObject(ctx, fieldName) {
+    if (this.lexer.token() == JsonToken.NULL) {
+      this.lexer.nextToken();
+      return null;
+    }
+
+    if (this.lexer.token() == JsonToken.RBRACE) {
+      this.lexer.nextToken();
+      return ctx;
+    }
+
+    if (this.lexer.token() == JsonToken.LITERAL_STRING && this.lexer.stringValue().length == 0) {
+      this.lexer.nextToken();
+      return ctx;
+    }
+
+    if (this.lexer.token() != JsonToken.LBRACE && this.lexer.token() != JsonToken.COMMA) {
+      throw new Error("syntax error, expect {, actual " + this.lexer.tokenName() + ", " + this.lexer.info());
+    }
+
+
+
 
   }
 
