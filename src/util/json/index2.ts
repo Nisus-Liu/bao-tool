@@ -8,6 +8,10 @@ function char(str:string) {
   return str.charCodeAt(0);
 }
 
+function str(i: number) {
+  return String.fromCharCode(i);
+}
+
 class JsonToken {
   static NULL = new JsonToken("NULL");
   static LPAREN = new JsonToken("(");
@@ -19,6 +23,7 @@ class JsonToken {
   static COMMA = new JsonToken(",");
   static COLON = new JsonToken(":");
   static LITERAL_STRING = new JsonToken("s")
+  static LITERAL_NUMBER = new JsonToken("n")
 
   name:string;
 
@@ -31,8 +36,12 @@ class JsonToken {
 
 class JsonLexer {
   static EOI            = 0x1A
-  text;
+  text = '';
   bp;
+  // string pos ?
+  sp;
+  np;
+  pos;
   len;
   ch = -1;
   _token: JsonToken;
@@ -68,7 +77,7 @@ class JsonLexer {
     return this.ch;
   }
 
-  next() {
+  next():number {
     const index = ++this.bp;
     return this.ch = (index >= this.len ? //
         JsonLexer.EOI //
@@ -76,7 +85,42 @@ class JsonLexer {
   }
 
   scanSymbol(quote: string) {
+    this.np = this.bp;
+    this.sp = 0;
+    let chLocal:number;
 
+    for (;;) {
+      chLocal = this.next();
+
+      if (chLocal == char(quote)) {
+        break;
+      }
+
+      if (chLocal == JsonLexer.EOI) {
+        throw new Error("unclosed.str");
+      }
+
+      // 暂不考虑 '\' 转义
+
+      this.sp++;
+    }
+
+    this._token = JsonToken.LITERAL_STRING;
+
+    let value;
+    let offset;
+    if (this.np == -1) {
+      offset = 0;
+    } else {
+      offset = this.np + 1;
+    }
+
+    value = this.text.substr(offset, this.sp);
+
+    this.sp = 0;
+    this.next();
+
+    return value;
   }
 
   scanNumber() {
@@ -111,13 +155,17 @@ class JsonLexer {
         ", line " + line
         + ", column "+column;
 
-    if (this.text.length() < 65535) {
+    if (this.text.length < 65535) {
       buf += this.text;
     } else {
       buf += this.text.substring(0, 65535);
     }
 
     return buf;
+  }
+
+  resetStringPosition() {
+    this.sp = 0;
   }
 }
 
@@ -161,7 +209,54 @@ class JsonParser {
       throw new Error("syntax error, expect {, actual " + this.lexer.tokenName() + ", " + this.lexer.info());
     }
 
+    for (;;) {
+      this.lexer.skipWhitespace();
+      let ch = this.lexer.getCurrent();
+      // 是否允许多余的 ','
+      // if (lexer.isEnabled(Feature.AllowArbitraryCommas)) {
+      while (ch == char(',')) {
+        this.lexer.next();
+        this.lexer.skipWhitespace();
+        ch = this.lexer.getCurrent();
+      }
+      // }
 
+      let isObjectKey = false;
+      let key;
+      if (ch == char('"')) {
+        key = this.lexer.scanSymbol('"');
+        this.lexer.skipWhitespace();
+        ch = this.lexer.getCurrent();
+        if (ch != char(':')) {
+          throw new Error("expect ':' at " + this.lexer.pos() + ", name " + key);
+        }
+      } else if (ch == char('}')) {
+        this.lexer.next();
+        this.lexer.resetStringPosition();
+        this.lexer.nextToken();
+      } else if (ch == char('\'')) {
+        key = this.lexer.scanSymbol('\'');
+        this.lexer.skipWhitespace();
+        ch = this.lexer.getCurrent();
+        if (ch != char(':')) {
+          throw new Error("expect ':' at " + this.lexer.pos() + ", name " + key);
+        }
+      } else if (ch == JsonLexer.EOI) {
+        throw new Error("syntax error");
+      } else if (ch == char(',')) {
+        throw new Error("syntax error");
+      }
+      // 数值型 key
+      else if ((ch >= char('0') && ch <= char('9')) || ch == char('-')) {
+        this.lexer.resetStringPosition();
+        this.lexer.scanNumber();
+        key = this.lexer.numberValue();
+        ch = this.lexer.getCurrent();
+        if (ch != char(':')) {
+          throw new Error("parse number key error" + this.lexer.info());
+        }
+      }
+    }
 
 
   }
