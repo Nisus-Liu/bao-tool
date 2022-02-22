@@ -1,4 +1,4 @@
-function char(str:string) {
+function char(str: string) {
   if (str == null) {
     return -1;
   }
@@ -25,7 +25,7 @@ class JsonToken {
   static LITERAL_STRING = new JsonToken("s")
   static LITERAL_NUMBER = new JsonToken("n")
 
-  name:string;
+  name: string;
 
   constructor(name: string) {
     this.name = name;
@@ -33,9 +33,8 @@ class JsonToken {
 }
 
 
-
 class JsonLexer {
-  static EOI            = 0x1A
+  static EOI = 0x1A
   text = '';
   bp;
   // string pos ?
@@ -46,7 +45,7 @@ class JsonLexer {
   ch = -1;
   _token: JsonToken;
 
-  constructor(input:string) {
+  constructor(input: string) {
     this.text = input;
     this.len = input.length;
     this.bp = -1;
@@ -66,7 +65,30 @@ class JsonLexer {
   }
 
   skipWhitespace() {
+    for (; ;) {
+      if (this.ch <= char('/')) {
+        if (this.isWhitespace(this.ch)) {
+          this.next();
+          continue;
+        } else if (this.ch == char('/')) {
+          skipComment();
+          continue;
+        } else {
+          break;
+        }
+      } else {
+        break;
+      }
+    }
+  }
 
+  isWhitespace(ch: number) {
+    return ch == char(' ') ||
+        ch == char('\r') ||
+        ch == char('\n') ||
+        ch == char('\t') ||
+        ch == char('\f') ||
+        ch == char('\b');
   }
 
   nextToken() {
@@ -77,7 +99,7 @@ class JsonLexer {
     return this.ch;
   }
 
-  next():number {
+  next(): number {
     const index = ++this.bp;
     return this.ch = (index >= this.len ? //
         JsonLexer.EOI //
@@ -87,13 +109,21 @@ class JsonLexer {
   scanSymbol(quote: string) {
     this.np = this.bp;
     this.sp = 0;
-    let chLocal:number;
+    let chLocal: number;
 
-    for (;;) {
+    const unQuoted = !quote;
+
+    for (; ;) {
       chLocal = this.next();
 
-      if (chLocal == char(quote)) {
-        break;
+      if (unQuoted) {
+        if (this.isWhitespace(chLocal)) {
+          break;
+        }
+      } else {
+        if (chLocal == char(quote)) {
+          break;
+        }
       }
 
       if (chLocal == JsonLexer.EOI) {
@@ -121,6 +151,10 @@ class JsonLexer {
     this.next();
 
     return value;
+  }
+
+  scanSymbolUnQuoted() {
+    return this.scanSymbol("");
   }
 
   scanNumber() {
@@ -153,7 +187,7 @@ class JsonLexer {
 
     buf += "pos " + this.bp +
         ", line " + line
-        + ", column "+column;
+        + ", column " + column;
 
     if (this.text.length < 65535) {
       buf += this.text;
@@ -172,8 +206,11 @@ class JsonLexer {
 class JsonParser {
   input;
   lexer: JsonLexer;
+  objectKeyLevel = 0;
+  context: JsonContext;
+  contextArray: JsonContext[] = [];
 
-  constructor(input:string) {
+  constructor(input: string) {
     this.lexer = new JsonLexer(input);
     this.input = input;
 
@@ -209,7 +246,11 @@ class JsonParser {
       throw new Error("syntax error, expect {, actual " + this.lexer.tokenName() + ", " + this.lexer.info());
     }
 
-    for (;;) {
+    let setContextFlag = false;
+
+    let context = this.context;
+
+    for (; ;) {
       this.lexer.skipWhitespace();
       let ch = this.lexer.getCurrent();
       // 是否允许多余的 ','
@@ -234,6 +275,20 @@ class JsonParser {
         this.lexer.next();
         this.lexer.resetStringPosition();
         this.lexer.nextToken();
+
+        if (!setContextFlag) {
+          if (this.context != null && fieldName == this.context.key && ctx == this.context.value) { // ? key一样, value一样, 什么场景会发生?
+            context = this.context; // 不变
+          } else {
+            let contextR: JsonContext = this.setContext(fieldName, ctx);
+            if (context == null) {
+              context = contextR;
+            }
+            setContextFlag = true;
+          }
+        }
+
+        return ctx;
       } else if (ch == char('\'')) {
         key = this.lexer.scanSymbol('\'');
         this.lexer.skipWhitespace();
@@ -256,27 +311,90 @@ class JsonParser {
           throw new Error("parse number key error" + this.lexer.info());
         }
       }
-    }
+          /*暂不考虑 objectKey 场景
+          else if (ch == char('{') || ch == char('[')) {
+            if (this.objectKeyLevel++ > 512) {
+              throw new Error("object key level > 512");
+            }
+            this.lexer.nextToken();
+            key = parse();
+            isObjectKey = true;
+          }*/
+      // 无引号的 key?
+      else {
+        key = this.lexer.scanSymbolUnQuoted();
+        this.lexer.skipWhitespace();
+        ch = this.lexer.getCurrent();
+        if (ch != char(':)')) {
+          throw new Error("expect ':' at " + this.lexer.pos() + ", actual " + ch);
+        }
+      }
 
+      if (!isObjectKey) {
+        this.lexer.next();
+        this.lexer.skipWhitespace();
+      }
+
+      ch = this.lexer.getCurrent();
+      this.lexer.resetStringPosition();
+
+      if (!setContextFlag) {
+        if (this.context != null && fieldName == this.context.key && ctx == this.context.value) { // ? key一样, value一样, 什么场景会发生?
+          context = this.context; // 不变
+        } else {
+          let contextR: JsonContext = this.setContext(fieldName, ctx);
+          if (context == null) {
+            context = contextR;
+          }
+          setContextFlag = true;
+        }
+      }
+
+      if (key == null) {
+        key = "null";
+      }
+
+      //-- value
+
+      let value;
+
+    }
 
   }
 
   parse() {
-    const jsonContext = new JsonContext();
+    const jsonContext = JsonContext.newRootContext();
     return this.parseObject(jsonContext, null);
   }
+
+  setContext(key: any, value: any) {
+    this.context = new JsonContext(key, value, this.context);
+    this.contextArray.push(this.context);
+    return this.context;
+  }
+
 }
 
 class JsonContext {
   key = null;
   value = null;
   comment = null;
-  parent:JsonContext|null = null;
-  children:JsonContext[] = [];
+  parent: JsonContext | null = null;
+  children: JsonContext[] = [];
+
+  constructor(key: any, value: any, parent: JsonContext | null) {
+    this.key = key;
+    this.value = value;
+    this.parent = parent;
+  }
+
+  static newRootContext() {
+    return new JsonContext(null, null, null);
+  }
 }
 
 class JsonMeta {
-  static parse(text:string) {
+  static parse(text: string) {
 
     const parser = new JsonParser(text);
     const result = parser.parse();
