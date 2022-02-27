@@ -162,6 +162,7 @@ class JsonLexer {
   }
 
   numberValue() {
+    return 1.234;
   }
 
   scanString() {
@@ -226,6 +227,12 @@ class JsonParser {
     }
   }
 
+  /**
+   *
+   * com.alibaba.fastjson.parser.DefaultJSONParser#parseObject(java.util.Map, java.lang.Object) (v1.2.73)
+   * @param ctx
+   * @param fieldName
+   */
   parseObject(ctx, fieldName) {
     if (this.lexer.token() == JsonToken.NULL) {
       this.lexer.nextToken();
@@ -280,7 +287,7 @@ class JsonParser {
           if (this.context != null && fieldName == this.context.key && ctx == this.context.value) { // ? key一样, value一样, 什么场景会发生?
             context = this.context; // 不变
           } else {
-            let contextR: JsonContext = this.setContext(fieldName, ctx);
+            let contextR: JsonContext = this.setContext(fieldName, ctx, null);
             if (context == null) {
               context = contextR;
             }
@@ -342,7 +349,7 @@ class JsonParser {
         if (this.context != null && fieldName == this.context.key && ctx == this.context.value) { // ? key一样, value一样, 什么场景会发生?
           context = this.context; // 不变
         } else {
-          let contextR: JsonContext = this.setContext(fieldName, ctx);
+          let contextR: JsonContext = this.setContext(fieldName, ctx, null);
           if (context == null) {
             context = contextR;
           }
@@ -355,9 +362,92 @@ class JsonParser {
       }
 
       //-- value
+      // 解析 key 结束后, 立马校验了':', 直接看 value
 
       let value;
+      if (ch == char('"')) {
+        this.lexer.scanString();
+        let strValue = this.lexer.stringValue();
+        value = strValue;
 
+        /*if (lexer.isEnabled(Feature.AllowISO8601DateFormat)) {
+          JSONScanner iso8601Lexer = new JSONScanner(strValue);
+          if (iso8601Lexer.scanISO8601DateIfMatch()) {
+            value = iso8601Lexer.getCalendar().getTime();
+          }
+          iso8601Lexer.close();
+        }*/
+
+        this.context.appendChild(key, value, null);
+      } else if (ch >= char('0') && ch <= char('9') || ch == char('-')) {
+        this.lexer.scanNumber();
+        value = this.lexer.numberValue();
+        this.context.appendChild(key, value, null);
+      } else if (ch == char('[')) {
+        this.lexer.nextToken();
+        let list = [];
+
+        const parentIsArray = fieldName != null && fieldName instanceof Number;
+
+        if (fieldName == null) { // root?
+          this.context = context;
+        }
+
+        this.parseArray(list, key); // todo
+
+        value = list;
+        this.context.appendChild(key, value, null);
+
+        if (this.lexer.token() == JsonToken.RBRACE) { // [{},{},...]
+          this.lexer.nextToken();
+          return ctx;
+        } else if (this.lexer.token() == JsonToken.COMMA) {
+          continue;
+        } else {
+          throw new Error("syntax error");
+        }
+      } else if (ch == char('{')) {
+        this.lexer.nextToken();
+
+        const parentIsArray = fieldName != null && fieldName instanceof Number;
+
+        if (!parentIsArray) { // key: {...}
+          context = this.setContext(key, null, this.context); // value 非基础值
+        }
+
+        value = this.parseObject(context, key);
+
+        context.children.push(value);
+
+        if (this.lexer.token() == JsonToken.RBRACE) { // {...}
+          this.lexer.nextToken();
+          return ctx;
+        } else if (this.lexer.token() == JsonToken.COMMA) {
+          continue;
+        } else {
+          throw new Error("syntax error, " + this.lexer.tokenName());
+        }
+      } else {
+        // todo
+      }
+
+      this.lexer.skipWhitespace();
+      ch = this.lexer.getCurrent();
+      if (ch == char(',')) {
+        this.lexer.next();
+        continue;
+      } else if (ch == char('}')) {
+        this.lexer.next();
+        this.lexer.resetStringPosition();
+        this.lexer.nextToken();
+
+        // this.setContext(object, fieldName);
+        this.setContext(key, value, null);
+
+        return ctx;
+      } else {
+        throw new Error("syntax error, position at " + this.lexer.pos() + ", name " + key);
+      }
     }
 
   }
@@ -367,8 +457,9 @@ class JsonParser {
     return this.parseObject(jsonContext, null);
   }
 
-  setContext(key: any, value: any) {
-    this.context = new JsonContext(key, value, this.context);
+  setContext(key: any, value: any, parent: JsonContext|null) {
+    parent = parent || this.context;
+    this.context = new JsonContext(key, value, parent);
     this.contextArray.push(this.context);
     return this.context;
   }
@@ -378,7 +469,7 @@ class JsonParser {
 class JsonContext {
   key = null;
   value = null;
-  comment = null;
+  comment:string|null = null;
   parent: JsonContext | null = null;
   children: JsonContext[] = [];
 
@@ -386,6 +477,13 @@ class JsonContext {
     this.key = key;
     this.value = value;
     this.parent = parent;
+  }
+
+  appendChild(key: any, value: any, comment: string|null): JsonContext {
+    let child = new JsonContext(key, value, this);
+    child.comment = comment;
+    this.children.push(child);
+    return this;
   }
 
   static newRootContext() {
