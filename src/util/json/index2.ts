@@ -466,6 +466,21 @@ class JsonParser {
 
 }
 
+class ParseContext {
+  key = null;
+  value = null;
+  comment = null;
+  parent: JsonContext | null = null;
+}
+
+class JsonObjectContext extends ParseContext {
+
+}
+
+class JsonArrayContext extends ParseContext {
+
+}
+
 class JsonContext {
   key = null;
   value = null;
