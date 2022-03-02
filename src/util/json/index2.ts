@@ -208,8 +208,8 @@ class JsonParser {
   input;
   lexer: JsonLexer;
   objectKeyLevel = 0;
-  context: JsonContext;
-  contextArray: JsonContext[] = [];
+  context: ParseContext | null = null;
+  contextArray: ParseContext[] = [];
 
   constructor(input: string) {
     this.lexer = new JsonLexer(input);
@@ -233,7 +233,7 @@ class JsonParser {
    * @param ctx
    * @param fieldName
    */
-  parseObject(ctx, fieldName) {
+  parseObject(ctx: ParseContext, fieldName: string | null) {
     if (this.lexer.token() == JsonToken.NULL) {
       this.lexer.nextToken();
       return null;
@@ -248,14 +248,14 @@ class JsonParser {
       this.lexer.nextToken();
       return ctx;
     }
-
+    // object , '{' 或 ','
     if (this.lexer.token() != JsonToken.LBRACE && this.lexer.token() != JsonToken.COMMA) {
       throw new Error("syntax error, expect {, actual " + this.lexer.tokenName() + ", " + this.lexer.info());
     }
 
     let setContextFlag = false;
 
-    let context = this.context;
+    let context = this.context; // 当前 context
 
     for (; ;) {
       this.lexer.skipWhitespace();
@@ -284,10 +284,10 @@ class JsonParser {
         this.lexer.nextToken();
 
         if (!setContextFlag) {
-          if (this.context != null && fieldName == this.context.key && ctx == this.context.value) { // ? key一样, value一样, 什么场景会发生?
+          if (this.context != null /*&& fieldName == this.context.key && ctx == this.context.value*/) { // ? key一样, value一样, 什么场景会发生?
             context = this.context; // 不变
           } else {
-            let contextR: JsonContext = this.setContext(fieldName, ctx, null);
+            let contextR: ParseContext = new ParseContext(this.context);
             if (context == null) {
               context = contextR;
             }
@@ -332,7 +332,7 @@ class JsonParser {
         key = this.lexer.scanSymbolUnQuoted();
         this.lexer.skipWhitespace();
         ch = this.lexer.getCurrent();
-        if (ch != char(':)')) {
+        if (ch != char(':')) {
           throw new Error("expect ':' at " + this.lexer.pos() + ", actual " + ch);
         }
       }
@@ -346,10 +346,10 @@ class JsonParser {
       this.lexer.resetStringPosition();
 
       if (!setContextFlag) {
-        if (this.context != null && fieldName == this.context.key && ctx == this.context.value) { // ? key一样, value一样, 什么场景会发生?
+        if (this.context != null /*&& fieldName == this.context.key && ctx == this.context.value*/) { // ? key一样, value一样, 什么场景会发生?
           context = this.context; // 不变
         } else {
-          let contextR: JsonContext = this.setContext(fieldName, ctx, null);
+          let contextR: ParseContext = new ParseContext(this.context);
           if (context == null) {
             context = contextR;
           }
@@ -378,11 +378,13 @@ class JsonParser {
           iso8601Lexer.close();
         }*/
 
-        this.context.appendChild(key, value, null);
+        const jsonItem = new JsonItem(context, key, value);
+        context?.add(jsonItem);
       } else if (ch >= char('0') && ch <= char('9') || ch == char('-')) {
         this.lexer.scanNumber();
         value = this.lexer.numberValue();
-        this.context.appendChild(key, value, null);
+        const jsonItem = new JsonItem(context, key, value);
+        context?.add(jsonItem);
       } else if (ch == char('[')) {
         this.lexer.nextToken();
         let list = [];
@@ -396,7 +398,9 @@ class JsonParser {
         this.parseArray(list, key); // todo
 
         value = list;
-        this.context.appendChild(key, value, null);
+
+        const jsonItem = new JsonItem(context, key, value);
+        context?.add(jsonItem);
 
         if (this.lexer.token() == JsonToken.RBRACE) { // [{},{},...]
           this.lexer.nextToken();
@@ -417,12 +421,15 @@ class JsonParser {
 
         value = this.parseObject(context, key);
 
-        context.children.push(value);
+        const jsonItem = new JsonItem(context, key, value);
+        context?.add(jsonItem);
 
         if (this.lexer.token() == JsonToken.RBRACE) { // {...}
           this.lexer.nextToken();
+          this.context = context;
           return ctx;
         } else if (this.lexer.token() == JsonToken.COMMA) {
+          // todo
           continue;
         } else {
           throw new Error("syntax error, " + this.lexer.tokenName());
@@ -442,7 +449,7 @@ class JsonParser {
         this.lexer.nextToken();
 
         // this.setContext(object, fieldName);
-        this.setContext(key, value, null);
+        // this.setContext(key, value, null); // ? 最后一项, 单独设置一次 context, 意义是什么 ?
 
         return ctx;
       } else {
@@ -450,61 +457,87 @@ class JsonParser {
       }
     }
 
+
+    this.context = context; // 复位
   }
 
   parse() {
-    const jsonContext = JsonContext.newRootContext();
-    return this.parseObject(jsonContext, null);
+    const rootCtx = new ParseContext(null);
+    return this.parseObject(rootCtx, null);
   }
 
-  setContext(key: any, value: any, parent: JsonContext|null) {
-    parent = parent || this.context;
-    this.context = new JsonContext(key, value, parent);
-    this.contextArray.push(this.context);
-    return this.context;
-  }
+  // setContext(key: any, value: any, parent: JsonContext|null) {
+  //   parent = parent || this.context;
+  //   this.context = new ParseContext(key, value, parent);
+  //   this.contextArray.push(this.context);
+  //   return this.context;
+  // }
 
 }
 
+/**
+ * {...} [...] 为 context
+ */
 class ParseContext {
-  key = null;
-  value = null;
-  comment = null;
-  parent: JsonContext | null = null;
-}
+  parent: ParseContext|null = null;
+  items: JsonItem[] = [];
 
-class JsonObjectContext extends ParseContext {
-
-}
-
-class JsonArrayContext extends ParseContext {
-
-}
-
-class JsonContext {
-  key = null;
-  value = null;
-  comment:string|null = null;
-  parent: JsonContext | null = null;
-  children: JsonContext[] = [];
-
-  constructor(key: any, value: any, parent: JsonContext | null) {
-    this.key = key;
-    this.value = value;
+  constructor(parent: ParseContext|null) {
     this.parent = parent;
   }
 
-  appendChild(key: any, value: any, comment: string|null): JsonContext {
-    let child = new JsonContext(key, value, this);
-    child.comment = comment;
-    this.children.push(child);
-    return this;
-  }
-
-  static newRootContext() {
-    return new JsonContext(null, null, null);
+  add(item: JsonItem) {
+    this.items.push(item);
   }
 }
+
+/**{...}*/
+class JsonObjectContext extends ParseContext {
+}
+
+/**[...]*/
+class JsonArrayContext extends ParseContext {
+}
+
+class JsonItem {
+  /**所在的 context*/
+  context: ParseContext;
+  key: null | string = null;
+  value: any = null;
+  // valueType: ValueType | undefined;
+  comment: string = '';
+
+  constructor(context: ParseContext | null, key: any, value: any) {
+    this.context = context;
+    this.key = key;
+    this.value = value;
+  }
+}
+
+// class JsonContext {
+//   key = null;
+//   value = null;
+//   comment:string|null = null;
+//   parent: JsonContext | null = null;
+//   children: JsonContext[] = [];
+//
+//   constructor(key: any, value: any, parent: JsonContext | null) {
+//     this.key = key;
+//     this.value = value;
+//     this.parent = parent;
+//   }
+//
+//   appendChild(key: any, value: any, comment: string|null): JsonContext {
+//     let child = new JsonContext(key, value, this);
+//     child.comment = comment;
+//     this.children.push(child);
+//     return this;
+//   }
+//
+//   static newRootContext() {
+//     return new JsonContext(null, null, null);
+//   }
+// }
 
 class JsonMeta {
   static parse(text: string) {
