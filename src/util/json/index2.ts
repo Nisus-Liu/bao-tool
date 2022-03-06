@@ -13,7 +13,9 @@ function str(i: number) {
 }
 
 class JsonToken {
-  static NULL = new JsonToken("NULL");
+  static ERROR = new JsonToken("error");
+  static NULL = new JsonToken("null");
+  static UNDEFINED = new JsonToken("undefined");
   static LPAREN = new JsonToken("(");
   static RPAREN = new JsonToken(")");
   static LBRACE = new JsonToken("{");
@@ -22,8 +24,14 @@ class JsonToken {
   static RBRACKET = new JsonToken("]");
   static COMMA = new JsonToken(",");
   static COLON = new JsonToken(":");
-  static LITERAL_STRING = new JsonToken("s")
-  static LITERAL_NUMBER = new JsonToken("n")
+  static SEMI = new JsonToken(";");
+  static DOT = new JsonToken(".");
+  static LITERAL_STRING = new JsonToken("string")
+  static LITERAL_NUMBER = new JsonToken("number")
+  static TRUE = new JsonToken("true")
+  static FALSE = new JsonToken("false")
+  static IDENTIFIER = new JsonToken("identifier")
+  static EOF = new JsonToken("eof")
 
   name: string;
 
@@ -38,12 +46,13 @@ class JsonLexer {
   text = '';
   bp;
   // string pos ?
-  sp;
-  np;
-  pos;
+  sp = 0;
+  np = 0;
+  pos = 0;
+  eofPos = 0;
   len;
   ch = -1;
-  _token: JsonToken;
+  _token: JsonToken | undefined;
 
   constructor(input: string) {
     this.text = input;
@@ -61,7 +70,7 @@ class JsonLexer {
   }
 
   tokenName() {
-    return this._token.name;
+    return this._token?.name;
   }
 
   skipWhitespace() {
@@ -71,7 +80,7 @@ class JsonLexer {
           this.next();
           continue;
         } else if (this.ch == char('/')) {
-          skipComment();
+          this.skipComment();
           continue;
         } else {
           break;
@@ -79,6 +88,38 @@ class JsonLexer {
       } else {
         break;
       }
+    }
+  }
+
+  skipComment() {
+    this.next();
+    if (this.ch == char('/')) {
+      for (; ;) {
+        this.next();
+        if (this.ch == char('\n')) {
+          this.next();
+          return;
+        } else if (this.ch == JsonLexer.EOI) {
+          return;
+        }
+      }
+    } else if (this.ch == char('*')) {
+      this.next();
+
+      for (; this.ch != JsonLexer.EOI;) {
+        if (this.ch == char('*')) {
+          this.next();
+          if (this.ch == char('/')) {
+            this.next();
+            return;
+          } else {
+            continue;
+          }
+        }
+        this.next();
+      }
+    } else {
+      throw new Error("invalid comment");
     }
   }
 
@@ -92,7 +133,138 @@ class JsonLexer {
   }
 
   nextToken() {
+    this.sp = 0;
 
+    for (; ;) {
+      this.pos = this.bp;
+
+      if (this.ch == char('/')) {
+        this.skipComment();
+        continue;
+      }
+
+      if (this.ch == char('"')) {
+        this.scanString();
+        return;
+      }
+
+      if (this.ch == char(',')) {
+        this.next();
+        this._token = JsonToken.COMMA;
+        return;
+      }
+
+      if (this.ch >= char('0') && this.ch <= char('9')) {
+        this.scanNumber();
+        return;
+      }
+
+      if (this.ch == char('-')) {
+        this.scanNumber();
+        return;
+      }
+
+      switch (this.ch) {
+        case char('\''):
+          // if (!isEnabled(Feature.AllowSingleQuotes)) {
+          //   throw new JSONException("Feature.AllowSingleQuotes is false");
+          // }
+          // this.scanStringSingleQuote();
+          this.scanSymbol("'");
+          return;
+        case char(' '):
+        case char('\t'):
+        case char('\b'):
+        case char('\f'):
+        case char('\n'):
+        case char('\r'):
+          this.next();
+          break;
+        case char('t'): // true
+          this.scanTrue();
+          return;
+        case char('f'): // false
+          this.scanFalse();
+          return;
+        case char('n'): // new,null
+          // this.scanNullOrNew();
+          this.scanNull();
+          return;
+        case char('T'):
+        case char('N'): // NULL
+        case char('S'):
+        case char('u'): // undefined
+          this.scanIdent();
+          return;
+        case char('('):
+          this.next();
+          this._token = JsonToken.LPAREN;
+          return;
+        case char(')'):
+          this.next();
+          this._token = JsonToken.RPAREN;
+          return;
+        case char('['):
+          this.next();
+          this._token = JsonToken.LBRACKET;
+          return;
+        case char(']'):
+          this.next();
+          this._token = JsonToken.RBRACKET;
+          return;
+        case char('{'):
+          this.next();
+          this._token = JsonToken.LBRACE;
+          return;
+        case char('}'):
+          this.next();
+          this._token = JsonToken.RBRACE;
+          return;
+        case char(':'):
+          this.next();
+          this._token = JsonToken.COLON;
+          return;
+        case char(';'):
+          this.next();
+          this._token = JsonToken.SEMI;
+          return;
+        case char('.'):
+          this.next();
+          this._token = JsonToken.DOT;
+          return;
+        case char('+'):
+          this.next();
+          this.scanNumber();
+          return;
+          // case char('x'):
+          //   this.scanHex();
+          //   return;
+        default:
+          if (this.isEOF()) { // JLS
+            if (this._token == JsonToken.EOF) {
+              throw new Error("EOF error");
+            }
+
+            this._token = JsonToken.EOF;
+            this.eofPos = this.pos = this.bp;
+          } else {
+            if (this.ch <= 31 || this.ch == 127) {
+              this.next();
+              break;
+            }
+
+            this.lexError("illegal.char", str(this.ch));
+            this.next();
+          }
+
+          return;
+      }
+    }
+
+  }
+
+  nextTokenExpect(expect: JsonToken) {
+    return this.nextToken(); // 暂
   }
 
   getCurrent() {
@@ -158,19 +330,272 @@ class JsonLexer {
   }
 
   scanNumber() {
+    this.np = this.bp;
 
+    if (this.ch == char('-')) {
+      this.sp++;
+      this.next();
+    }
+
+    for (; ;) {
+      if (this.ch >= char('0') && this.ch <= char('9')) {
+        this.sp++;
+      } else {
+        break;
+      }
+      this.next();
+    }
+
+    let isDouble = false;
+
+    if (this.ch == char('.')) {
+      this.sp++;
+      this.next();
+      isDouble = true;
+
+      for (; ;) {
+        if (this.ch >= char('0') && this.ch <= char('9')) {
+          this.sp++;
+        } else {
+          break;
+        }
+        this.next();
+      }
+    }
+
+    if (this.sp > 65535) {
+      throw new Error("scanNumber overflow");
+    }
+
+    if (this.ch == char('L')) {
+      this.sp++;
+      this.next();
+    } else if (this.ch == char('S')) {
+      this.sp++;
+      this.next();
+    } else if (this.ch == char('B')) {
+      this.sp++;
+      this.next();
+    } else if (this.ch == char('F')) {
+      this.sp++;
+      this.next();
+      isDouble = true;
+    } else if (this.ch == char('D')) {
+      this.sp++;
+      this.next();
+      isDouble = true;
+    } else if (this.ch == char('e') || this.ch == char('E')) {
+      this.sp++;
+      this.next();
+
+      if (this.ch == char('+') || this.ch == char('-')) {
+        this.sp++;
+        this.next();
+      }
+
+      for (; ;) {
+        if (this.ch >= char('0') && this.ch <= char('9')) {
+          this.sp++;
+        } else {
+          break;
+        }
+        this.next();
+      }
+
+      if (this.ch == char('D') || this.ch == char('F')) {
+        this.sp++;
+        this.next();
+      }
+
+      isDouble = true;
+    }
+
+    // if (isDouble) {
+    //   token = JSONToken.LITERAL_FLOAT;
+    // } else {
+    //   token = JSONToken.LITERAL_INT;
+    // }
+    this._token = JsonToken.LITERAL_NUMBER;
   }
 
-  numberValue() {
-    return 1.234;
+  scanTrue() {
+    if (this.ch != char('t')) {
+      throw new Error("error parse true");
+    }
+    this.next();
+
+    if (this.ch != char('r')) {
+      throw new Error("error parse true");
+    }
+    this.next();
+
+    if (this.ch != char('u')) {
+      throw new Error("error parse true");
+    }
+    this.next();
+
+    if (this.ch != char('e')) {
+      throw new Error("error parse true");
+    }
+    this.next();
+
+    if (this.ch == char(' ') ||
+        this.ch == char(',') ||
+        this.ch == char('}') ||
+        this.ch == char(']') ||
+        this.ch == char('\n') ||
+        this.ch == char('\r') ||
+        this.ch == char('\t') ||
+        this.ch == JsonLexer.EOI ||
+        this.ch == char('\f') ||
+        this.ch == char('\b') ||
+        this.ch == char(':') ||
+        this.ch == char('/')) {
+      this._token = JsonToken.TRUE;
+    } else {
+      throw new Error("scan true error");
+    }
+  }
+
+  scanFalse() {
+    if (this.ch != char('f')) {
+      throw new Error("error parse false");
+    }
+    this.next();
+
+    if (this.ch != char('a')) {
+      throw new Error("error parse false");
+    }
+    this.next();
+
+    if (this.ch != char('l')) {
+      throw new Error("error parse false");
+    }
+    this.next();
+
+    if (this.ch != char('s')) {
+      throw new Error("error parse false");
+    }
+    this.next();
+
+    if (this.ch != char('e')) {
+      throw new Error("error parse false");
+    }
+    this.next();
+
+    if (this.ch == char(' ') ||
+        this.ch == char(',') ||
+        this.ch == char('}') ||
+        this.ch == char(']') ||
+        this.ch == char('\n') ||
+        this.ch == char('\r') ||
+        this.ch == char('\t') ||
+        this.ch == JsonLexer.EOI ||
+        this.ch == char('\f') ||
+        this.ch == char('\b') ||
+        this.ch == char(':') ||
+        this.ch == char('/')) {
+      this._token = JsonToken.FALSE;
+    } else {
+      throw new Error("scan false error");
+    }
+  }
+
+  scanNull() {
+    if (this.ch != char('n')) {
+      throw new Error("error parse null");
+    }
+    this.next();
+
+    if (this.ch != char('u')) {
+      throw new Error("error parse null");
+    }
+    this.next();
+
+    if (this.ch != char('l')) {
+      throw new Error("error parse null");
+    }
+    this.next();
+
+    if (this.ch != char('l')) {
+      throw new Error("error parse null");
+    }
+    this.next();
+
+    if (this.isWhitespace(this.ch)
+        || this.ch == char(',')
+        || this.ch == char('}')
+        || this.ch == char(']')
+        || this.ch == JsonLexer.EOI
+    ) {
+      this._token = JsonToken.NULL;
+    } else {
+      throw new Error("scan null error");
+    }
+    return;
+  }
+
+  scanIdent() {
+    this.np = this.bp - 1;
+    // hasSpecial = false;
+
+    for (; ;) {
+      this.sp++;
+
+      this.next();
+      if ((this.ch >= char('A') && this.ch <= char('Z'))
+          || (this.ch >= char('a') && this.ch <= char('z'))
+          || (this.ch >= char('0') && this.ch <= char('9'))
+      ) {
+        continue;
+      }
+    }
+
+    let ident = this.stringValue();
+
+    if ("null" == ident.toLowerCase()) {
+      this._token = JsonToken.NULL;
+    } /*else if ("new" == ident.toLowerCase()) {
+      this._token = JsonToken.NEW;
+    }*/ else if ("true" == ident.toLowerCase()) {
+      this._token = JsonToken.TRUE;
+    } else if ("false" == ident.toLowerCase()) {
+      this._token = JsonToken.FALSE;
+    } else if ("undefined" == ident.toLowerCase()) {
+      this._token = JsonToken.UNDEFINED;
+    } /*else if ("Set" == ident.toLowerCase()) {
+      this._token = JsonToken.SET;
+    } else if ("TreeSet" == ident.toLowerCase()) {
+      this._token = JsonToken.TREE_SET;
+    }*/ else {
+      this._token = JsonToken.IDENTIFIER;
+    }
+    return;
   }
 
   scanString() {
+    return this.scanSymbol(""); // 暂
+  }
 
+  numberValue() {
+    const chLocal = this.text.charAt(this.np + this.sp - 1);
+
+    let sp = this.sp;
+    if (chLocal == 'L' || chLocal == 'S' || chLocal == 'B' || chLocal == 'F' || chLocal == 'D') {
+      sp--;
+    }
+
+    const s = this.text.substr(this.np, sp);
+
+    return Number(s); // 暂
   }
 
   stringValue() {
-    return "todo"
+    return this.text.substr(this.np + 1, this.sp);
+  }
+
+  isEOF() {
+    return this.bp == this.len || (this.ch == JsonLexer.EOI && this.bp + 1 >= this.len);
   }
 
   info() {
@@ -201,6 +626,10 @@ class JsonLexer {
 
   resetStringPosition() {
     this.sp = 0;
+  }
+
+  lexError(key: any, ...args: any) {
+    this._token = JsonToken.ERROR;
   }
 }
 
@@ -233,7 +662,7 @@ class JsonParser {
    * @param ctx
    * @param fieldName
    */
-  parseObject(ctx: ParseContext, fieldName: string | null) {
+  parseObject(ctx: JsonObjectContext, fieldName: any) {
     if (this.lexer.token() == JsonToken.NULL) {
       this.lexer.nextToken();
       return null;
@@ -270,13 +699,13 @@ class JsonParser {
       // }
 
       let isObjectKey = false;
-      let key;
+      let key: any;
       if (ch == char('"')) {
         key = this.lexer.scanSymbol('"');
         this.lexer.skipWhitespace();
         ch = this.lexer.getCurrent();
         if (ch != char(':')) {
-          throw new Error("expect ':' at " + this.lexer.pos() + ", name " + key);
+          throw new Error("expect ':' at " + this.lexer.pos + ", name " + key);
         }
       } else if (ch == char('}')) {
         this.lexer.next();
@@ -287,7 +716,7 @@ class JsonParser {
           if (this.context != null /*&& fieldName == this.context.key && ctx == this.context.value*/) { // ? key一样, value一样, 什么场景会发生?
             context = this.context; // 不变
           } else {
-            let contextR: ParseContext = new ParseContext(this.context);
+            let contextR: ParseContext = new JsonObjectContext(this.context);
             if (context == null) {
               context = contextR;
             }
@@ -295,13 +724,13 @@ class JsonParser {
           }
         }
 
-        return ctx;
+        return context;
       } else if (ch == char('\'')) {
         key = this.lexer.scanSymbol('\'');
         this.lexer.skipWhitespace();
         ch = this.lexer.getCurrent();
         if (ch != char(':')) {
-          throw new Error("expect ':' at " + this.lexer.pos() + ", name " + key);
+          throw new Error("expect ':' at " + this.lexer.pos + ", name " + key);
         }
       } else if (ch == JsonLexer.EOI) {
         throw new Error("syntax error");
@@ -333,7 +762,7 @@ class JsonParser {
         this.lexer.skipWhitespace();
         ch = this.lexer.getCurrent();
         if (ch != char(':')) {
-          throw new Error("expect ':' at " + this.lexer.pos() + ", actual " + ch);
+          throw new Error("expect ':' at " + this.lexer.pos + ", actual " + ch);
         }
       }
 
@@ -349,7 +778,7 @@ class JsonParser {
         if (this.context != null /*&& fieldName == this.context.key && ctx == this.context.value*/) { // ? key一样, value一样, 什么场景会发生?
           context = this.context; // 不变
         } else {
-          let contextR: ParseContext = new ParseContext(this.context);
+          let contextR: ParseContext = new JsonObjectContext(this.context);
           if (context == null) {
             context = contextR;
           }
@@ -378,16 +807,15 @@ class JsonParser {
           iso8601Lexer.close();
         }*/
 
-        const jsonItem = new JsonItem(context, key, value);
+        const jsonItem = new JsonItemContext(context, key, value);
         context?.add(jsonItem);
       } else if (ch >= char('0') && ch <= char('9') || ch == char('-')) {
         this.lexer.scanNumber();
         value = this.lexer.numberValue();
-        const jsonItem = new JsonItem(context, key, value);
+        const jsonItem = new JsonItemContext(context, key, value);
         context?.add(jsonItem);
       } else if (ch == char('[')) {
         this.lexer.nextToken();
-        let list = [];
 
         const parentIsArray = fieldName != null && fieldName instanceof Number;
 
@@ -395,47 +823,45 @@ class JsonParser {
           this.context = context;
         }
 
-        this.parseArray(list, key); // todo
+        const arrayCtx = new JsonArrayContext(context);
+        this.parseArray(arrayCtx, key); // 内部不需要 new context 了, item 直接添加. todo
 
-        value = list;
+        context?.add(arrayCtx);
 
-        const jsonItem = new JsonItem(context, key, value);
-        context?.add(jsonItem);
-
-        if (this.lexer.token() == JsonToken.RBRACE) { // [{},{},...]
+        if (this.lexer.token() == JsonToken.RBRACE) { // `{... []}`
           this.lexer.nextToken();
           return ctx;
-        } else if (this.lexer.token() == JsonToken.COMMA) {
+        } else if (this.lexer.token() == JsonToken.COMMA) { // `k: [],`
           continue;
         } else {
           throw new Error("syntax error");
         }
-      } else if (ch == char('{')) {
+      } else if (ch == char('{')) { // fastjson-1.2.73-sources.jar!/com/alibaba/fastjson/parser/DefaultJSONParser.java:537
         this.lexer.nextToken();
 
         const parentIsArray = fieldName != null && fieldName instanceof Number;
 
-        if (!parentIsArray) { // key: {...}
-          context = this.setContext(key, null, this.context); // value 非基础值
-        }
+        // if (!parentIsArray) { // key: {...}
+        //   context = new JsonObjectContext(context);
+        // }
+        const objectCtx = new JsonObjectContext(context);
 
-        value = this.parseObject(context, key);
+        this.parseObject(objectCtx, key);
 
-        const jsonItem = new JsonItem(context, key, value);
-        context?.add(jsonItem);
+        context?.add(objectCtx);
 
         if (this.lexer.token() == JsonToken.RBRACE) { // {...}
           this.lexer.nextToken();
           this.context = context;
           return ctx;
         } else if (this.lexer.token() == JsonToken.COMMA) {
-          // todo
+          this.context = context;
           continue;
         } else {
           throw new Error("syntax error, " + this.lexer.tokenName());
         }
-      } else {
-        // todo
+      } else { // 非一般value, 咱不考虑
+        // to-do
       }
 
       this.lexer.skipWhitespace();
@@ -453,12 +879,114 @@ class JsonParser {
 
         return ctx;
       } else {
-        throw new Error("syntax error, position at " + this.lexer.pos() + ", name " + key);
+        throw new Error("syntax error, position at " + this.lexer.pos + ", name " + key);
       }
     }
 
 
     this.context = context; // 复位
+  }
+
+  /**
+   * fastjson-1.2.73-sources.jar!/com/alibaba/fastjson/parser/DefaultJSONParser.java:1162
+   * @param ctx
+   * @param fieldName
+   */
+  parseArray(ctx: JsonArrayContext, fieldName: any) {
+    const lexer = this.lexer;
+
+    if (lexer.token() != JsonToken.LBRACKET) {
+      throw new Error("syntax error, expect [, actual " + lexer.tokenName() + ", pos "
+          + lexer.pos + ", fieldName " + fieldName);
+    }
+
+    lexer.nextTokenExpect(JsonToken.LITERAL_STRING);
+
+    // if (this.context != null && this.context.level > 512) {
+    //   throw new JSONException("array level > 512");
+    // }
+
+    let context = ctx;
+    try {
+      for (let i = 0; ; ++i) {
+        // if (lexer.isEnabled(Feature.AllowArbitraryCommas)) {
+        while (lexer.token() == JsonToken.COMMA) {
+          lexer.nextToken();
+          continue;
+        }
+        // }
+
+        // @ts-ignore
+        let value: ParseContext = null;
+        switch (lexer.token()) {
+          case JsonToken.LITERAL_NUMBER:
+            value = new JsonItemContext(context, i, lexer.numberValue());
+            lexer.nextTokenExpect(JsonToken.COMMA);
+            break;
+          case JsonToken.LITERAL_STRING:
+            let stringLiteral = lexer.stringValue();
+            lexer.nextTokenExpect(JsonToken.COMMA);
+
+            // if (lexer.isEnabled(Feature.AllowISO8601DateFormat)) {
+            //   JSONScanner iso8601Lexer = new JSONScanner(stringLiteral);
+            //   if (iso8601Lexer.scanISO8601DateIfMatch()) {
+            //     value = iso8601Lexer.getCalendar().getTime();
+            //   } else {
+            //     value = stringLiteral;
+            //   }
+            //   iso8601Lexer.close();
+            // } else {
+            value = new JsonItemContext(context, i, stringLiteral);
+            // }
+
+            break;
+          case JsonToken.TRUE:
+            value = new JsonItemContext(context, i, true);
+            lexer.nextTokenExpect(JsonToken.COMMA);
+            break;
+          case JsonToken.FALSE:
+            value = new JsonItemContext(context, i, false);
+            lexer.nextTokenExpect(JsonToken.COMMA);
+            break;
+          case JsonToken.LBRACE:
+            const objectCtx = new JsonObjectContext(context);
+            this.parseObject(objectCtx, i);
+            value = objectCtx;
+            break;
+          case JsonToken.LBRACKET:
+            const arrayCtx = new JsonArrayContext(context);
+            this.parseArray(arrayCtx, i);
+            value = arrayCtx;
+            break;
+          case JsonToken.NULL:
+            value = new JsonItemContext(context, i, null);
+            lexer.nextTokenExpect(JsonToken.LITERAL_STRING);
+            break;
+          case JsonToken.UNDEFINED:
+            value = new JsonItemContext(context, i, null);
+            lexer.nextTokenExpect(JsonToken.LITERAL_STRING);
+            break;
+          case JsonToken.RBRACKET:
+            lexer.nextTokenExpect(JsonToken.COMMA);
+            return;
+          case JsonToken.EOF:
+            throw new Error("unclosed jsonArray");
+          default:
+            // value = parse(); // 咱不考虑
+            break;
+        }
+
+        value && context.add(value);
+        // checkListResolve(array);
+
+        if (lexer.token() == JsonToken.COMMA) {
+          lexer.nextTokenExpect(JsonToken.LITERAL_STRING);
+          continue;
+        }
+      }
+    } finally {
+      this.context = context;
+    }
   }
 
   parse() {
@@ -476,18 +1004,23 @@ class JsonParser {
 }
 
 /**
- * {...} [...] 为 context
+ * {...}, [...], 字段k-v 都可以认为是 context
  */
 class ParseContext {
-  parent: ParseContext|null = null;
-  items: JsonItem[] = [];
+  key = null;
+  // 简单值时用
+  value = null;
+  // {},[] 时用
+  children: ParseContext[] = [];
+  parent: ParseContext | null = null;
+  comment = null;
 
-  constructor(parent: ParseContext|null) {
+  constructor(parent: ParseContext | null) {
     this.parent = parent;
   }
 
-  add(item: JsonItem) {
-    this.items.push(item);
+  add(item: ParseContext) {
+    this.children.push(item);
   }
 }
 
@@ -499,20 +1032,30 @@ class JsonObjectContext extends ParseContext {
 class JsonArrayContext extends ParseContext {
 }
 
-class JsonItem {
-  /**所在的 context*/
-  context: ParseContext;
-  key: null | string = null;
-  value: any = null;
-  // valueType: ValueType | undefined;
-  comment: string = '';
+class JsonItemContext extends ParseContext {
 
-  constructor(context: ParseContext | null, key: any, value: any) {
-    this.context = context;
+  constructor(parent: ParseContext | null, key: any, value: any) {
+    super(parent);
     this.key = key;
     this.value = value;
   }
 }
+
+//
+// class JsonItem {
+//   /**所在的 context*/
+//   context: ParseContext;
+//   key: null | string = null;
+//   value: any = null;
+//   // valueType: ValueType | undefined;
+//   comment: string = '';
+//
+//   constructor(context: ParseContext | null, key: any, value: any) {
+//     this.context = context;
+//     this.key = key;
+//     this.value = value;
+//   }
+// }
 
 // class JsonContext {
 //   key = null;
