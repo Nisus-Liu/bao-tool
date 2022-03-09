@@ -45,11 +45,12 @@ class JsonLexer {
   static EOI = 0x1A
   text = '';
   bp;
-  // string pos ?
+  // string 长度
   sp = 0;
   np = 0;
   pos = 0;
   eofPos = 0;
+  hasSpecial = false;
   len;
   ch = -1;
   _token: JsonToken | undefined;
@@ -130,6 +131,13 @@ class JsonLexer {
         ch == char('\t') ||
         ch == char('\f') ||
         ch == char('\b');
+  }
+
+  isIdentifier(ch: number) {
+    return (ch >= char('A') && ch <= char('Z'))
+        || (ch >= char('a') && ch <= char('z'))
+        || (ch >= char('0') && this.ch <= char('9'))
+        || (ch == char('_'));
   }
 
   nextToken() {
@@ -278,6 +286,10 @@ class JsonLexer {
         : this.text.charCodeAt(index));
   }
 
+  /**
+   * scan 符号
+   * @param quote 包裹的引号(双|单), 可null, 表示没有引号包裹
+   */
   scanSymbol(quote: string) {
     this.np = this.bp;
     this.sp = 0;
@@ -288,11 +300,11 @@ class JsonLexer {
     for (; ;) {
       chLocal = this.next();
 
-      if (unQuoted) {
-        if (this.isWhitespace(chLocal)) {
+      if (unQuoted) { // 没有引号开始, 遇到非'标识符'结束
+        if (!this.isIdentifier(chLocal)) {
           break;
         }
-      } else {
+      } else { // 有引号开始, 遇到同样引号结束
         if (chLocal == char(quote)) {
           break;
         }
@@ -543,10 +555,7 @@ class JsonLexer {
       this.sp++;
 
       this.next();
-      if ((this.ch >= char('A') && this.ch <= char('Z'))
-          || (this.ch >= char('a') && this.ch <= char('z'))
-          || (this.ch >= char('0') && this.ch <= char('9'))
-      ) {
+      if (this.isIdentifier(this.ch)) {
         continue;
       }
     }
@@ -573,8 +582,39 @@ class JsonLexer {
     return;
   }
 
+  /**
+   *
+   */
   scanString() {
-    return this.scanSymbol(""); // 暂
+    this.np = this.bp;
+    this.hasSpecial = false;
+    let ch;
+    for (; ;) {
+      ch = this.next();
+
+      if (ch == char('\"')) {
+        break;
+      }
+
+      if (ch == JsonLexer.EOI) {
+        if (!this.isEOF()) {
+          // putChar((char) EOI);
+          continue;
+        }
+        throw new Error("unclosed string : " + ch);
+      }
+
+      // 暂不考虑转义
+
+      if (!this.hasSpecial) {
+        this.sp++;
+        continue;
+      } // else 不计入长度
+
+    }
+
+    this._token = JsonToken.LITERAL_STRING;
+    this.ch = this.next();
   }
 
   numberValue() {
@@ -668,6 +708,8 @@ class JsonParser {
       return null;
     }
 
+    let context = this.context = ctx; // 当前 context  我这里 context 和 结果在一起, 当前就是 object 上下文
+
     if (this.lexer.token() == JsonToken.RBRACE) {
       this.lexer.nextToken();
       return ctx;
@@ -683,8 +725,6 @@ class JsonParser {
     }
 
     let setContextFlag = false;
-
-    let context = this.context; // 当前 context
 
     for (; ;) {
       this.lexer.skipWhitespace();
@@ -990,7 +1030,7 @@ class JsonParser {
   }
 
   parse() {
-    const rootCtx = new ParseContext(null);
+    const rootCtx = new JsonObjectContext(null);
     return this.parseObject(rootCtx, null);
   }
 
@@ -1082,10 +1122,12 @@ class JsonItemContext extends ParseContext {
 //   }
 // }
 
-class JsonMeta {
-  static parse(text: string) {
 
-    const parser = new JsonParser(text);
-    const result = parser.parse();
-  }
-}
+// ---- 测试 ----
+
+let text = "{\n" +
+    "\"a\": \"q\"\n" +
+    "}";
+const parser = new JsonParser(text);
+const result = parser.parse();
+console.log(result);
