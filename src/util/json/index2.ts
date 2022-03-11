@@ -555,12 +555,12 @@ class JsonLexer {
       this.sp++;
 
       this.next();
-      if (this.isIdentifier(this.ch)) {
-        continue;
+      if (!this.isIdentifier(this.ch)) {
+        break;
       }
     }
 
-    let ident = this.stringValue();
+    const ident = this.stringValue();
 
     if ("null" == ident.toLowerCase()) {
       this._token = JsonToken.NULL;
@@ -670,6 +670,10 @@ class JsonLexer {
 
   lexError(key: any, ...args: any) {
     this._token = JsonToken.ERROR;
+  }
+
+  isBlankInput() {
+    return this.text?.trim().length == 0;
   }
 }
 
@@ -900,8 +904,20 @@ class JsonParser {
         } else {
           throw new Error("syntax error, " + this.lexer.tokenName());
         }
-      } else { // 非一般value, 咱不考虑
-        // to-do
+      } else {
+        this.lexer.nextToken();
+        const parseCtx = this.parse0(key);
+
+        context?.add(parseCtx);
+
+        if (this.lexer.token() == JsonToken.RBRACE) {
+          this.lexer.nextToken();
+          return ctx;
+        } else if (this.lexer.token() == JsonToken.COMMA) {
+          continue;
+        } else {
+          throw new Error("syntax error, position at " + this.lexer.pos + ", name " + key);
+        }
       }
 
       this.lexer.skipWhitespace();
@@ -1030,8 +1046,51 @@ class JsonParser {
   }
 
   parse() {
-    const rootCtx = new JsonObjectContext(null);
-    return this.parseObject(rootCtx, null);
+    return this.parse0(null);
+  }
+
+  parse0(fieldName: any): ParseContext {
+    const lexer = this.lexer;
+    switch (lexer.token()) {
+      case JsonToken.LBRACKET:
+        const arrayCtx = new JsonArrayContext(this.context);
+        arrayCtx.key = fieldName;
+        this.parseArray(arrayCtx, fieldName);
+        return arrayCtx;
+      case JsonToken.LBRACE:
+        const objectCtx = new JsonObjectContext(this.context);
+        objectCtx.key = fieldName;
+        this.parseObject(objectCtx, fieldName);
+        return objectCtx;
+      case JsonToken.LITERAL_NUMBER:
+        const n = lexer.numberValue();
+        lexer.nextToken();
+        return new JsonItemContext(this.context, fieldName, n);
+      case JsonToken.LITERAL_STRING:
+        const s = lexer.stringValue();
+        lexer.nextToken();
+        return new JsonItemContext(this.context, fieldName, s);
+      case JsonToken.NULL:
+        lexer.nextToken();
+        return new JsonItemContext(this.context, fieldName, null);
+      case JsonToken.UNDEFINED:
+        lexer.nextToken();
+        return new JsonItemContext(this.context, fieldName, undefined);
+      case JsonToken.TRUE:
+        lexer.nextToken();
+        return new JsonItemContext(this.context, fieldName, true);
+      case JsonToken.FALSE:
+        lexer.nextToken();
+        return new JsonItemContext(this.context, fieldName, false);
+      case JsonToken.EOF:
+        if (lexer.isBlankInput()) {
+          return new ParseContext(this.context);
+        }
+        throw new Error("unterminated json string, " + lexer.info());
+      case JsonToken.ERROR:
+      default:
+        throw new Error("syntax error, " + lexer.info());
+    }
   }
 
   // setContext(key: any, value: any, parent: JsonContext|null) {
@@ -1125,9 +1184,15 @@ class JsonItemContext extends ParseContext {
 
 // ---- 测试 ----
 
-let text = "{\n" +
-    "\"a\": \"q\"\n" +
-    "}";
+let text = `
+{
+  "a": "qwe",
+  // "b": 123.456,
+  // "c": true,
+  // "d": null,
+  "e": undefined   
+}
+`;
 const parser = new JsonParser(text);
 const result = parser.parse();
 console.log(result);
