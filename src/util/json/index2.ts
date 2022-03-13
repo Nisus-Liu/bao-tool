@@ -54,6 +54,9 @@ class JsonLexer {
   len;
   ch = -1;
   _token: JsonToken | undefined;
+  // whitespace LF count
+  wsLfCnt = 0;
+  commentBuff = '';
 
   constructor(input: string) {
     this.text = input;
@@ -75,15 +78,19 @@ class JsonLexer {
   }
 
   skipWhitespace() {
+    this.wsLfCnt = 0; // 重置
     for (; ;) {
-      if (this.ch <= char('/')) {
+      if (this.ch < char('/')) { // 原 '<='
         if (this.isWhitespace(this.ch)) {
+          if (this.isLf(this.ch)) {
+            this.wsLfCnt++;
+          }
           this.next();
           continue;
-        } else if (this.ch == char('/')) {
+        } /*else if (this.ch == char('/')) {
           this.skipComment();
           continue;
-        } else {
+        }*/ else {
           break;
         }
       } else {
@@ -92,25 +99,28 @@ class JsonLexer {
     }
   }
 
+  /**
+   * 上一个char是'/'才会调用此方法.
+   */
   skipComment() {
     this.next();
-    if (this.ch == char('/')) {
+    if (this.ch == char('/')) { // '//' 开始的单行注释
       for (; ;) {
         this.next();
-        if (this.ch == char('\n')) {
+        if (this.ch == char('\n')) { // '//' 单行注释, 遇到换行即停
           this.next();
           return;
         } else if (this.ch == JsonLexer.EOI) {
           return;
         }
       }
-    } else if (this.ch == char('*')) {
+    } else if (this.ch == char('*')) { // '/*' 开始的注释块
       this.next();
 
       for (; this.ch != JsonLexer.EOI;) {
         if (this.ch == char('*')) {
           this.next();
-          if (this.ch == char('/')) {
+          if (this.ch == char('/')) { // 遇到 '*/' 结束注释块
             this.next();
             return;
           } else {
@@ -133,6 +143,10 @@ class JsonLexer {
         ch == char('\b');
   }
 
+  isLf(ch: number) {
+    return ch == char('\n');
+  }
+
   isIdentifier(ch: number) {
     return (ch >= char('A') && ch <= char('Z'))
         || (ch >= char('a') && ch <= char('z'))
@@ -147,7 +161,8 @@ class JsonLexer {
       this.pos = this.bp;
 
       if (this.ch == char('/')) {
-        this.skipComment();
+        // this.skipComment();
+        this.commentBuff = this.scanComment();
         continue;
       }
 
@@ -617,6 +632,90 @@ class JsonLexer {
     this.ch = this.next();
   }
 
+  /**
+   * 上一个char是'/'才会调用此方法.
+   * 注释内容原样收集, 含标识符们.
+   *
+   * 1. 单行.
+   * 2. 多行.
+   * 3. 注释块.
+   */
+  scanComment(isTail = false) {
+    if (this.ch != char('/')) {
+      return '';
+    }
+
+    let singleLine = false;
+    let cmmntBuf = str(this.ch);
+    this.next();
+    cmmntBuf += str(this.ch);
+    if (this.ch == char('/')) { // '//' 开始的单行注释
+      for (; ;) {
+        this.next();
+        cmmntBuf += str(this.ch);
+        if (this.ch == char('\n')) {
+          if (isTail) {
+            // '//...' 单行
+            this.next();
+            singleLine = true;
+            break;
+          }
+          // 多行注释. 下一行还是 '//...' 吗, 是, 则继续 scan
+          this.skipWhitespace(); // 忽略注释行首的空白
+          if (this.ch == char('/')) {
+            cmmntBuf += str(this.ch);
+            this.next();
+            cmmntBuf += str(this.ch);
+            if (this.ch != char('/')) {
+              throw new Error("invalid comment");
+            }
+          } else {
+            break;
+          }
+        } else if (this.ch == JsonLexer.EOI) {
+          break;
+        }
+      }
+    } else if (this.ch == char('*')) { // '/*' 开始的注释块
+      this.next();
+
+      for (; this.ch != JsonLexer.EOI;) {
+        cmmntBuf += str(this.ch);
+        if (this.ch == char('*')) {
+          this.next();
+          if (this.ch == char('/')) { // 遇到 '*/' 结束注释块
+            cmmntBuf += str(this.ch); // '/' 计入
+            this.next();
+            break;
+          } else {
+            continue;
+          }
+        }
+        this.next();
+      }
+    } else {
+      throw new Error("invalid comment");
+    }
+
+    // 多个注释区域?
+    if (!singleLine) {
+      this.skipWhitespace();
+      if (this.ch == char('/')) {
+        cmmntBuf += '\n'.repeat(this.wsLfCnt) + this.scanComment();
+      }
+    }
+
+    // if (this.wsLfCnt > 0) {
+    //   // 前面空白中有换行, 则当前注释归属其后面的 context
+    // } else {
+    //   // 行尾的, 但前面 context 是 object|array, 也是归属下一个 context
+    // }
+
+    this.skipWhitespace();
+
+    return cmmntBuf;
+  }
+
   numberValue() {
     const chLocal = this.text.charAt(this.np + this.sp - 1);
 
@@ -666,6 +765,12 @@ class JsonLexer {
 
   resetStringPosition() {
     this.sp = 0;
+  }
+
+  resetCommentBuff() {
+    const t = this.commentBuff;
+    this.commentBuff = '';
+    return t;
   }
 
   lexError(key: any, ...args: any) {
@@ -730,6 +835,9 @@ class JsonParser {
 
     let setContextFlag = false;
 
+    let cmmntBuf = '';
+    let itemCtx: ParseContext;
+
     for (; ;) {
       this.lexer.skipWhitespace();
       let ch = this.lexer.getCurrent();
@@ -741,6 +849,16 @@ class JsonParser {
         ch = this.lexer.getCurrent();
       }
       // }
+
+      // 可能上次遇到 ',' continue 过来的, 行尾注释没有处理
+      // @ts-ignore
+      if (itemCtx && this.lexer.wsLfCnt == 0) {
+        itemCtx.comment += this.lexer.scanComment(true);
+        ch = this.lexer.getCurrent();
+      }
+      // 下一个 ctx 的, 寄存之
+      cmmntBuf = this.lexer.scanComment();
+      ch = this.lexer.getCurrent();
 
       let isObjectKey = false;
       let key: any;
@@ -760,7 +878,7 @@ class JsonParser {
           if (this.context != null /*&& fieldName == this.context.key && ctx == this.context.value*/) { // ? key一样, value一样, 什么场景会发生?
             context = this.context; // 不变
           } else {
-            let contextR: ParseContext = new JsonObjectContext(this.context);
+            let contextR: ParseContext = new JsonObjectContext(this.context, key);
             if (context == null) {
               context = contextR;
             }
@@ -822,7 +940,7 @@ class JsonParser {
         if (this.context != null /*&& fieldName == this.context.key && ctx == this.context.value*/) { // ? key一样, value一样, 什么场景会发生?
           context = this.context; // 不变
         } else {
-          let contextR: ParseContext = new JsonObjectContext(this.context);
+          let contextR: ParseContext = new JsonObjectContext(this.context, key);
           if (context == null) {
             context = contextR;
           }
@@ -837,11 +955,9 @@ class JsonParser {
       //-- value
       // 解析 key 结束后, 立马校验了':', 直接看 value
 
-      let value;
       if (ch == char('"')) {
         this.lexer.scanString();
         let strValue = this.lexer.stringValue();
-        value = strValue;
 
         /*if (lexer.isEnabled(Feature.AllowISO8601DateFormat)) {
           JSONScanner iso8601Lexer = new JSONScanner(strValue);
@@ -851,14 +967,14 @@ class JsonParser {
           iso8601Lexer.close();
         }*/
 
-        const jsonItem = new JsonItemContext(context, key, value);
-        context?.add(jsonItem);
+        itemCtx = new JsonItemContext(context, key, strValue);
+        context?.add(itemCtx);
       } else if (ch >= char('0') && ch <= char('9') || ch == char('-')) {
         this.lexer.scanNumber();
-        value = this.lexer.numberValue();
-        const jsonItem = new JsonItemContext(context, key, value);
-        context?.add(jsonItem);
-      } else if (ch == char('[')) {
+        const value = this.lexer.numberValue();
+        itemCtx = new JsonItemContext(context, key, value);
+        context?.add(itemCtx);
+      } else if (ch == char('[')) { // fastjson-1.2.73-sources.jar!/com/alibaba/fastjson/parser/DefaultJSONParser.java:507
         this.lexer.nextToken();
 
         const parentIsArray = fieldName != null && fieldName instanceof Number;
@@ -867,13 +983,14 @@ class JsonParser {
           this.context = context;
         }
 
-        const arrayCtx = new JsonArrayContext(context);
-        this.parseArray(arrayCtx, key); // 内部不需要 new context 了, item 直接添加. todo
+        itemCtx = new JsonArrayContext(context, key);
+        this.parseArray(itemCtx, key); // 内部不需要 new context 了, item 直接添加.
 
-        context?.add(arrayCtx);
+        context?.add(itemCtx);
 
         if (this.lexer.token() == JsonToken.RBRACE) { // `{... []}`
           this.lexer.nextToken();
+          itemCtx.comment += cmmntBuf + this.lexer.resetCommentBuff(); // k:[] nextToken 得到的尾注释
           return ctx;
         } else if (this.lexer.token() == JsonToken.COMMA) { // `k: [],`
           continue;
@@ -888,13 +1005,14 @@ class JsonParser {
         // if (!parentIsArray) { // key: {...}
         //   context = new JsonObjectContext(context);
         // }
-        const objectCtx = new JsonObjectContext(context);
+        itemCtx = new JsonObjectContext(context, key);
 
-        this.parseObject(objectCtx, key);
+        this.parseObject(itemCtx, key);
 
-        context?.add(objectCtx);
+        context?.add(itemCtx);
 
         if (this.lexer.token() == JsonToken.RBRACE) { // {...}
+          itemCtx.comment += cmmntBuf + this.lexer.resetCommentBuff();
           this.lexer.nextToken();
           this.context = context;
           return ctx;
@@ -906,12 +1024,13 @@ class JsonParser {
         }
       } else {
         this.lexer.nextToken();
-        const parseCtx = this.parse0(key);
+        itemCtx = this.parse0(key);
 
-        context?.add(parseCtx);
+        context?.add(itemCtx);
 
         if (this.lexer.token() == JsonToken.RBRACE) {
           this.lexer.nextToken();
+          itemCtx.comment += cmmntBuf + this.lexer.resetCommentBuff();
           return ctx;
         } else if (this.lexer.token() == JsonToken.COMMA) {
           continue;
@@ -921,6 +1040,12 @@ class JsonParser {
       }
 
       this.lexer.skipWhitespace();
+      if (this.lexer.wsLfCnt == 0) {
+        // 当前 item context 的行尾注释
+        cmmntBuf += this.lexer.scanComment(true);
+        itemCtx.comment += cmmntBuf;
+      }
+
       ch = this.lexer.getCurrent();
       if (ch == char(',')) {
         this.lexer.next();
@@ -943,6 +1068,15 @@ class JsonParser {
     this.context = context; // 复位
   }
 
+  // scanTailComment() {
+  //   this.lexer.skipWhitespace();
+  //   if (this.lexer.wsLfCnt == 0) {
+  //     // 当前 item context 的行尾注释
+  //     return this.lexer.scanComment(true);
+  //   }
+  //   return '';
+  // }
+
   /**
    * fastjson-1.2.73-sources.jar!/com/alibaba/fastjson/parser/DefaultJSONParser.java:1162
    * @param ctx
@@ -963,86 +1097,86 @@ class JsonParser {
     // }
 
     let context = ctx;
-    try {
-      for (let i = 0; ; ++i) {
-        // if (lexer.isEnabled(Feature.AllowArbitraryCommas)) {
-        while (lexer.token() == JsonToken.COMMA) {
-          lexer.nextToken();
-          continue;
-        }
-        // }
-
-        // @ts-ignore
-        let value: ParseContext = null;
-        switch (lexer.token()) {
-          case JsonToken.LITERAL_NUMBER:
-            value = new JsonItemContext(context, i, lexer.numberValue());
-            lexer.nextTokenExpect(JsonToken.COMMA);
-            break;
-          case JsonToken.LITERAL_STRING:
-            let stringLiteral = lexer.stringValue();
-            lexer.nextTokenExpect(JsonToken.COMMA);
-
-            // if (lexer.isEnabled(Feature.AllowISO8601DateFormat)) {
-            //   JSONScanner iso8601Lexer = new JSONScanner(stringLiteral);
-            //   if (iso8601Lexer.scanISO8601DateIfMatch()) {
-            //     value = iso8601Lexer.getCalendar().getTime();
-            //   } else {
-            //     value = stringLiteral;
-            //   }
-            //   iso8601Lexer.close();
-            // } else {
-            value = new JsonItemContext(context, i, stringLiteral);
-            // }
-
-            break;
-          case JsonToken.TRUE:
-            value = new JsonItemContext(context, i, true);
-            lexer.nextTokenExpect(JsonToken.COMMA);
-            break;
-          case JsonToken.FALSE:
-            value = new JsonItemContext(context, i, false);
-            lexer.nextTokenExpect(JsonToken.COMMA);
-            break;
-          case JsonToken.LBRACE:
-            const objectCtx = new JsonObjectContext(context);
-            this.parseObject(objectCtx, i);
-            value = objectCtx;
-            break;
-          case JsonToken.LBRACKET:
-            const arrayCtx = new JsonArrayContext(context);
-            this.parseArray(arrayCtx, i);
-            value = arrayCtx;
-            break;
-          case JsonToken.NULL:
-            value = new JsonItemContext(context, i, null);
-            lexer.nextTokenExpect(JsonToken.LITERAL_STRING);
-            break;
-          case JsonToken.UNDEFINED:
-            value = new JsonItemContext(context, i, null);
-            lexer.nextTokenExpect(JsonToken.LITERAL_STRING);
-            break;
-          case JsonToken.RBRACKET:
-            lexer.nextTokenExpect(JsonToken.COMMA);
-            return;
-          case JsonToken.EOF:
-            throw new Error("unclosed jsonArray");
-          default:
-            // value = parse(); // 咱不考虑
-            break;
-        }
-
-        value && context.add(value);
-        // checkListResolve(array);
-
-        if (lexer.token() == JsonToken.COMMA) {
-          lexer.nextTokenExpect(JsonToken.LITERAL_STRING);
-          continue;
-        }
+    // try {
+    for (let i = 0; ; ++i) {
+      // if (lexer.isEnabled(Feature.AllowArbitraryCommas)) {
+      while (lexer.token() == JsonToken.COMMA) {
+        lexer.nextToken();
+        continue;
       }
-    } finally {
-      this.context = context;
+      // }
+
+      // @ts-ignore
+      let value: ParseContext = null;
+      switch (lexer.token()) {
+        case JsonToken.LITERAL_NUMBER:
+          value = new JsonItemContext(context, i, lexer.numberValue());
+          lexer.nextTokenExpect(JsonToken.COMMA);
+          break;
+        case JsonToken.LITERAL_STRING:
+          let stringLiteral = lexer.stringValue();
+          lexer.nextTokenExpect(JsonToken.COMMA);
+
+          // if (lexer.isEnabled(Feature.AllowISO8601DateFormat)) {
+          //   JSONScanner iso8601Lexer = new JSONScanner(stringLiteral);
+          //   if (iso8601Lexer.scanISO8601DateIfMatch()) {
+          //     value = iso8601Lexer.getCalendar().getTime();
+          //   } else {
+          //     value = stringLiteral;
+          //   }
+          //   iso8601Lexer.close();
+          // } else {
+          value = new JsonItemContext(context, i, stringLiteral);
+          // }
+
+          break;
+        case JsonToken.TRUE:
+          value = new JsonItemContext(context, i, true);
+          lexer.nextTokenExpect(JsonToken.COMMA);
+          break;
+        case JsonToken.FALSE:
+          value = new JsonItemContext(context, i, false);
+          lexer.nextTokenExpect(JsonToken.COMMA);
+          break;
+        case JsonToken.LBRACE:
+          const objectCtx = new JsonObjectContext(context, fieldName);
+          this.parseObject(objectCtx, i);
+          value = objectCtx;
+          break;
+        case JsonToken.LBRACKET:
+          const arrayCtx = new JsonArrayContext(context, fieldName);
+          this.parseArray(arrayCtx, i);
+          value = arrayCtx;
+          break;
+        case JsonToken.NULL:
+          value = new JsonItemContext(context, i, null);
+          lexer.nextTokenExpect(JsonToken.LITERAL_STRING);
+          break;
+        case JsonToken.UNDEFINED:
+          value = new JsonItemContext(context, i, null);
+          lexer.nextTokenExpect(JsonToken.LITERAL_STRING);
+          break;
+        case JsonToken.RBRACKET:
+          lexer.nextTokenExpect(JsonToken.COMMA);
+          return;
+        case JsonToken.EOF:
+          throw new Error("unclosed jsonArray");
+        default:
+          // value = parse(); // 暂不考虑
+          break;
+      }
+
+      value && context.add(value);
+      // checkListResolve(array);
+
+      if (lexer.token() == JsonToken.COMMA) {
+        lexer.nextTokenExpect(JsonToken.LITERAL_STRING);
+        continue;
+      }
     }
+    // } finally {
+    //   this.context = context;
+    // }
   }
 
   parse() {
@@ -1051,15 +1185,19 @@ class JsonParser {
 
   parse0(fieldName: any): ParseContext {
     const lexer = this.lexer;
+    const cmmnt = this.lexer.commentBuff + lexer.scanComment();
+    this.lexer.commentBuff = '';
     switch (lexer.token()) {
       case JsonToken.LBRACKET:
-        const arrayCtx = new JsonArrayContext(this.context);
+        const arrayCtx = new JsonArrayContext(this.context, fieldName);
         arrayCtx.key = fieldName;
+        arrayCtx.comment += cmmnt;
         this.parseArray(arrayCtx, fieldName);
         return arrayCtx;
       case JsonToken.LBRACE:
-        const objectCtx = new JsonObjectContext(this.context);
+        const objectCtx = new JsonObjectContext(this.context, fieldName);
         objectCtx.key = fieldName;
+        objectCtx.comment += cmmnt;
         this.parseObject(objectCtx, fieldName);
         return objectCtx;
       case JsonToken.LITERAL_NUMBER:
@@ -1068,7 +1206,7 @@ class JsonParser {
         return new JsonItemContext(this.context, fieldName, n);
       case JsonToken.LITERAL_STRING:
         const s = lexer.stringValue();
-        lexer.nextToken();
+        lexer.nextTokenExpect(JsonToken.COMMA);
         return new JsonItemContext(this.context, fieldName, s);
       case JsonToken.NULL:
         lexer.nextToken();
@@ -1112,7 +1250,7 @@ class ParseContext {
   // {},[] 时用
   children: ParseContext[] = [];
   parent: ParseContext | null = null;
-  comment = null;
+  comment = '';
 
   constructor(parent: ParseContext | null) {
     this.parent = parent;
@@ -1121,14 +1259,26 @@ class ParseContext {
   add(item: ParseContext) {
     this.children.push(item);
   }
+
+  // toString() {
+  //   return `${this.comment}\n${this.key}: ${this.value}\nchildren: ${this.children}`
+  // }
 }
 
 /**{...}*/
 class JsonObjectContext extends ParseContext {
+  constructor(parent: ParseContext | null, key: any) {
+    super(parent);
+    this.key = key;
+  }
 }
 
 /**[...]*/
 class JsonArrayContext extends ParseContext {
+  constructor(parent: ParseContext | null, key: any) {
+    super(parent);
+    this.key = key;
+  }
 }
 
 class JsonItemContext extends ParseContext {
@@ -1185,12 +1335,18 @@ class JsonItemContext extends ParseContext {
 // ---- 测试 ----
 
 let text = `
+/*hello*/
+
+// 注释区域2
 {
-  "a": "qwe",
+  // "a": "qwe",
   // "b": 123.456,
   // "c": true,
   // "d": null,
-  "e": undefined   
+  // "e": undefined   
+  "f": [1,2, "ti"], // fffff
+  // ggg111
+  "g": 6, // ggg222
 }
 `;
 const parser = new JsonParser(text);
