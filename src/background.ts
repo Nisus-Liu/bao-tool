@@ -3,8 +3,8 @@
 import { app, protocol, BrowserWindow, ipcMain } from 'electron'
 import { createProtocol } from 'vue-cli-plugin-electron-builder/lib'
 import installExtension, { VUEJS3_DEVTOOLS } from 'electron-devtools-installer'
+import ipcMainHandler from "@/ipc/ipc_main_handle";
 const isDevelopment = process.env.NODE_ENV !== 'production'
-const fs = require('fs')
 
 // Scheme must be registered before the app is ready
 protocol.registerSchemesAsPrivileged([
@@ -41,18 +41,8 @@ async function createWindow() {
     win.loadURL('app://./index.html')
   }
 
-
-  ipcMain.on("getTplContent", (event, args) => {
-    console.log("收到渲染进程的消息", args);
-
-    fs.readFile('./src/db/template/javabean.tpl', 'utf8' , (err, data) => {
-      if (err) {
-        console.error(err)
-        return
-      }
-      win.webContents.send("getTplContent", data); // 响应渲染进程
-    })
-  });
+  // 批量注册进 handler
+  ipcMainHandler.listen(win);
 }
 
 // Quit when all windows are closed.

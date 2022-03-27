@@ -5,3 +5,8 @@ body {
     margin: 0;
     padding: 0;
 }
+
+// 解决 CM 样式被全局的影响
+.CodeMirror-line {
+    text-align: left;
+}

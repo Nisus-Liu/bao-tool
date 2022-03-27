@@ -32,7 +32,6 @@ npm run start
 
 [EJS -- 嵌入式 JavaScript 模板引擎 | EJS 中文文档](https://ejs.bootcss.com/)
 
-
 ## FAQ
 
 - Vue cli Electron plugin

@@ -1,0 +1,15 @@
+// Auto generated
+<%-
+context.comment
+%>
+public class JavaBean {
+<%= context.children?.map(it => {
+    // 怎么调用外部js变量或方法???
+
+    return `${it.comment ? it.comment : ''}` +
+            `private String ${it.key};`
+}).join('\n    ')
+%>
+}
+
+
