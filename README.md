@@ -32,6 +32,14 @@ npm run start
 
 [EJS -- 嵌入式 JavaScript 模板引擎 | EJS 中文文档](https://ejs.bootcss.com/)
 
+
+* 自动发布
+
+GitHub token
+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
+
+[Electron-快速构建安装包及自动发布 - 掘金](https://juejin.cn/post/6844904102011338766#heading-4)
+
 ## FAQ
 
 - Vue cli Electron plugin
