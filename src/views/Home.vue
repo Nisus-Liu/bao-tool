@@ -13,6 +13,9 @@ import {IpcChannel} from "@/ipc/ipc_channel";
 import ipcRenderWrap from "@/ipc/ipc_render_wrap"
 import Test1 from "@/views/Test1.vue";
 const ejs = require('ejs');
+const Store = require('electron-store');
+
+const store = new Store();
 
 
 export default defineComponent({
@@ -25,6 +28,11 @@ export default defineComponent({
   methods: {
     clickMe() {
       console.log('clickMe', this);
+      store.set("abc", 346578697);
+      console.log(store.get("abc"));
+      store.set("a.b.c", 5);
+      console.log(store.get("a"));
+
 
       ipcRenderWrap.send(IpcChannel.getTplContent, (event, args) => {
         console.log('send 22222222222222');

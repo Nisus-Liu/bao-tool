@@ -89,3 +89,25 @@ if (isDevelopment) {
     })
   }
 }
+
+
+const Store = require('electron-store');
+// 初始化(注释掉, 渲染进程依然可以正常使用? 另, 帖子说注释掉会造成渲染进程卡死? [Electron-store 渲染进程卡死原因](https://segmentfault.com/a/1190000040934859?sort=votes))
+Store.initRenderer();
+
+/*
+const store = new Store();
+
+store.set('unicorn', '🦄');
+console.log(store.get('unicorn'));
+//=> '🦄'
+
+// Use dot-notation to access nested properties
+store.set('foo.bar', true);
+console.log(store.get('foo'));
+//=> {bar: true}
+
+store.delete('unicorn');
+console.log(store.get('unicorn'));
+//=> undefined
+*/

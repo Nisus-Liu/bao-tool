@@ -10,12 +10,12 @@
         </a-menu-item>
         <a-sub-menu key="java2struct">
           <!--<pie-chart-outlined />-->
-          <template #title>JSON转Struct</template>
+          <template #title>From JSON</template>
           <a-menu-item key="json2javabean">
-            <router-link to="/json2javabean">JSON->JavaBean</router-link>
+            <router-link to="/json2javabean">To JavaBean</router-link>
           </a-menu-item>
-          <a-menu-item>
-            <span>TODO</span>
+          <a-menu-item key="json2jsonschema">
+            <router-link to="/json2jsonschema">To JsonSchema</router-link>
           </a-menu-item>
         </a-sub-menu>
         <a-menu-item key="about">

@@ -13,6 +13,11 @@ const routes: Array<RouteRecordRaw> = [
     component: () => import('../views/Json2JavaBean.vue')
   },
   {
+    path: '/json2jsonschema',
+    name: 'Json2Jsonschema',
+    component: () => import('../views/Json2Jsonschema.vue')
+  },
+  {
     path: '/about',
     name: 'About',
     // route level code-splitting
