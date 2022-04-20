@@ -1,3 +1,5 @@
+import {StringNN} from "@/type";
+
 function char(str: string) {
   if (str == null) {
     return -1;
@@ -1277,6 +1279,7 @@ class ParseContext {
   children: ParseContext[] = [];
   parent: ParseContext | null = null;
   comment = '';
+  commentMeta: CommentMeta | undefined;
   type: ItemType = ItemType.OBJECT;
 
   constructor(parent: ParseContext | null) {
@@ -1285,6 +1288,21 @@ class ParseContext {
 
   add(item: ParseContext) {
     this.children.push(item);
+  }
+
+  /**
+   * ! 需要在comment就绪后再调用 ! 解析后, comment 变化了, 也不会再次解析的
+   */
+  parseComment() {
+    if (!CommentMeta) {
+      this.commentMeta = new CommentMeta(this.comment);
+
+      // children
+      this.children.forEach(child => {
+        child.parseComment();
+      })
+    }
+    return this.commentMeta;
   }
 
   // toString() {
@@ -1344,46 +1362,84 @@ class JsonItemContext extends ParseContext {
   }
 }
 
-//
-// class JsonItem {
-//   /**所在的 context*/
-//   context: ParseContext;
-//   key: null | string = null;
-//   value: any = null;
-//   // valueType: ValueType | undefined;
-//   comment: string = '';
-//
-//   constructor(context: ParseContext | null, key: any, value: any) {
-//     this.context = context;
-//     this.key = key;
-//     this.value = value;
-//   }
-// }
 
-// class JsonContext {
-//   key = null;
-//   value = null;
-//   comment:string|null = null;
-//   parent: JsonContext | null = null;
-//   children: JsonContext[] = [];
-//
-//   constructor(key: any, value: any, parent: JsonContext | null) {
-//     this.key = key;
-//     this.value = value;
-//     this.parent = parent;
-//   }
-//
-//   appendChild(key: any, value: any, comment: string|null): JsonContext {
-//     let child = new JsonContext(key, value, this);
-//     child.comment = comment;
-//     this.children.push(child);
-//     return this;
-//   }
-//
-//   static newRootContext() {
-//     return new JsonContext(null, null, null);
-//   }
-// }
+class CommentMeta {
+  static readonly N_LINE_RE = /(.*)(\n+|$)/;
+  static readonly SINGLE_LINE_CMMT_RE = /^\/\/\s*(.*?)\s*$/;
+  static readonly WORD_RE = /(\w+)/;
+  /**
+   * 原始注释内容
+   */
+  comment: StringNN;
+  /**
+   * json schema 相关的规范描述. 如: {"minLength": 2, "maxLength": 3}
+   */
+  schemaDescriptor: Record<string, unknown> = {};
+
+  constructor(comment: StringNN) {
+    this.comment = comment;
+    this.parse();
+  }
+
+  /**
+   * 逐行, 找 "@xxx yyy" 提取, 放入 schemaDescriptor
+   */
+  parse() {
+    if (!this.comment) {
+      return null;
+    }
+    let pure = '';
+    let src = this.comment;
+    while (src) {
+      const exec = CommentMeta.N_LINE_RE.exec(src);
+      if (!exec) {
+        // 理论不会匹配不到
+        break;
+      }
+
+      const line = exec[1].trim();
+
+      src = src.substr(exec[0].length);
+
+      let scdKey;
+      for (let i = 1; i < line.length; i++) { // 注释, 0 位置不会是有效内容的
+        let curr = line.charAt(i);
+        if (curr == ' ' || curr == '\t') {
+          continue;
+        }
+
+        if (curr == '@' && line.charAt(i-1) != '\\' && i < line.length - 1) { // 考虑 '@' 占一位
+          const w = CommentMeta.WORD_RE.exec(line.substr(i+1, 256));
+          if (w) {
+            scdKey = w[1];
+          } else {
+            continue; // 没有 scdKey, 忽略孤零零的 '@'
+          }
+
+          i += w[0].length;
+          continue;
+        }
+
+        if (scdKey != undefined) {
+          // scdValue
+          const w = CommentMeta.WORD_RE.exec(line.substr(i, 256));
+          if (w) {
+            /*暂不做有效性校验, 一股脑放入*/
+            this.schemaDescriptor[scdKey] = w[1];
+            i += w[0].length - 1;
+          }
+
+          // 当前的 scdKey 的 scdValue 不论有无, 都要结束当前 k-v
+          scdKey = undefined;
+        }
+      }
+    }
+
+
+  }
+}
+
+
 
 export default JsonParser;
 export {
