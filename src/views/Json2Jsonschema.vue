@@ -112,6 +112,9 @@ export default defineComponent({
         throw e;
       }
       console.log("----> context: ", context)
+
+      context.parseComment();
+      // console.log("--parseComment--> context: ", context)
       const scobj = json2Jsonschema(context);
       result.value = JSON.stringify(scobj, null, 2);
     }

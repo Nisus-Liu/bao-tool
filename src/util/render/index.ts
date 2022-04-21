@@ -4,7 +4,7 @@ import {DateFormat} from "@/util";
 
 export function json2JavaBean(context: ParseContext) {
   return `// Auto generate at ${new DateFormat().format(DateFormat.DATE_TIME_FMT)}
-${context.comment?.trim()}
+${context.commentMeta?.pureComment?.trim()}
 public class JavaBean {
     ${context.children?.map(it => {
     let type = 'Object';
@@ -26,7 +26,7 @@ public class JavaBean {
             break;
     }
 
-    return `${it.comment ? it.comment.trim() : ''}
+    return `${it.commentMeta ? it.commentMeta.pureComment?.trim() : ''}
     private ${type} ${it.key};`
 }).join('\n    ')}
 }`
@@ -37,8 +37,8 @@ const JSON_SCHEMA_DRAFT = "http://json-schema.org/draft-04/schema#"
 
 export function json2Jsonschema(context: ParseContext, isRoot = true) {
     let sc = {};
-    if (context.comment) {
-        sc['description'] = context.comment;
+    if (context.commentMeta) {
+        sc['description'] = context.commentMeta.pureComment;
     }
 
     switch (context.type) {
@@ -75,7 +75,7 @@ function jsonObject2Jsonschema(context: ParseContext, schemaResult: Record<strin
         throw new Error("jsonObject2Jsonschema 仅支持 ItemType.OBJECT");
     }
     schemaResult['type'] = 'object';
-    context.comment && (schemaResult['description'] = context.comment);
+    context.commentMeta && (schemaResult['description'] = context.commentMeta.pureComment);
 
     let propsSc = schemaResult['properties'] = {}
     context.children?.forEach(prop => {
@@ -100,7 +100,7 @@ function jsonObject2Jsonschema(context: ParseContext, schemaResult: Record<strin
                 propSc['type'] = 'number';
                 break;
         }
-        prop.comment && (propSc['description'] = prop.comment);
+        prop.commentMeta && (propSc['description'] = prop.commentMeta.pureComment);
         propsSc[prop.key + ''] = propSc;
     })
 
@@ -113,7 +113,7 @@ function jsonArray2Jsonschema(context: ParseContext, schemaResult: Record<string
     }
 
     schemaResult['type'] = 'array';
-    context.comment && (schemaResult['description'] = context.comment);
+    context.commentMeta && (schemaResult['description'] = context.commentMeta.pureComment);
 
     // items , 去第一个解析, 多个item, 但类型不一致, 我不管了!
     let itemsSc:any = null;

@@ -1279,7 +1279,7 @@ class ParseContext {
   children: ParseContext[] = [];
   parent: ParseContext | null = null;
   comment = '';
-  commentMeta: CommentMeta | undefined;
+  commentMeta: CommentMeta | null = null;
   type: ItemType = ItemType.OBJECT;
 
   constructor(parent: ParseContext | null) {
@@ -1294,7 +1294,7 @@ class ParseContext {
    * ! 需要在comment就绪后再调用 ! 解析后, comment 变化了, 也不会再次解析的
    */
   parseComment() {
-    if (!CommentMeta) {
+    if (!this.commentMeta) {
       this.commentMeta = new CommentMeta(this.comment);
 
       // children
@@ -1366,11 +1366,12 @@ class JsonItemContext extends ParseContext {
 class CommentMeta {
   static readonly N_LINE_RE = /(.*)(\n+|$)/;
   static readonly SINGLE_LINE_CMMT_RE = /^\/\/\s*(.*?)\s*$/;
-  static readonly WORD_RE = /(\w+)/;
+  static readonly WORD_RE = /(\S+)/;
   /**
    * 原始注释内容
    */
   comment: StringNN;
+  pureComment: StringNN;
   /**
    * json schema 相关的规范描述. 如: {"minLength": 2, "maxLength": 3}
    */
@@ -1391,15 +1392,51 @@ class CommentMeta {
     let pure = '';
     let src = this.comment;
     while (src) {
-      const exec = CommentMeta.N_LINE_RE.exec(src);
+      let exec = CommentMeta.N_LINE_RE.exec(src);
       if (!exec) {
         // 理论不会匹配不到
         break;
       }
+      src = src.substr(exec[0].length);
 
       const line = exec[1].trim();
+      if (!line) {
+        // 空行
+        pure += '\n';
+        continue;
+      }
 
-      src = src.substr(exec[0].length);
+      // exec = /^\s+$/.exec(line);
+      // if (exec) {
+      //   pure += '\n';
+      //   src = src.substr(exec[0].length);
+      //   continue;
+      // }
+
+      let pureLine;
+      // "// ...."
+      exec = /^\s*(\/\/\s*).*?/.exec(line);
+      if (exec) {
+        pureLine = line.substr(exec[0].length);
+      } else {
+        // "/** ..." | "/* ..." | "* ..."
+        exec = /^\s*(\/\*\*?\s*).*?|^\s*(\*\s*).*?/.exec(line);
+        if (exec) {
+          if (line.endsWith("*/")) {
+            if (line.length == 2) {
+              // "*/" 单独占一行
+              pureLine = '';
+            } else {
+              pureLine = line.substring(exec[0].length, line.length - 2);
+            }
+          } else {
+            pureLine = line.substr(exec[0].length);
+          }
+        }
+      }
+
+      // 暂, 不讲 scd k-v 扣除
+      pure += (pure ? "\n" + pureLine : pureLine);
 
       let scdKey;
       for (let i = 1; i < line.length; i++) { // 注释, 0 位置不会是有效内容的
@@ -1421,7 +1458,7 @@ class CommentMeta {
         }
 
         if (scdKey != undefined) {
-          // scdValue
+          // scdValue todo " ' 包裹
           const w = CommentMeta.WORD_RE.exec(line.substr(i, 256));
           if (w) {
             /*暂不做有效性校验, 一股脑放入*/
@@ -1435,7 +1472,7 @@ class CommentMeta {
       }
     }
 
-
+    this.pureComment = pure;
   }
 }
 
@@ -1467,3 +1504,5 @@ export {
 // const parser = new JsonParser(text);
 // const result = parser.parse();
 // console.log(result);
+// const parseComment = result.parseComment();
+// console.log(parseComment);
