@@ -1,10 +1,13 @@
 import {ItemType, ParseContext} from "@/util/json";
 import {DateFormat} from "@/util";
 
-
+/**
+ * json -> java bean
+ * @param context
+ */
 export function json2JavaBean(context: ParseContext) {
   return `// Auto generate at ${new DateFormat().format(DateFormat.DATE_TIME_FMT)}
-${context.commentMeta?.pureComment?.trim()}
+${context.comment?.trim()}
 public class JavaBean {
     ${context.children?.map(it => {
     let type = 'Object';
@@ -26,7 +29,7 @@ public class JavaBean {
             break;
     }
 
-    return `${it.commentMeta ? it.commentMeta.pureComment?.trim() : ''}
+    return `${it.comment ? it.comment.trim() : ''}
     private ${type} ${it.key};`
 }).join('\n    ')}
 }`
@@ -35,6 +38,11 @@ public class JavaBean {
 // ----
 const JSON_SCHEMA_DRAFT = "http://json-schema.org/draft-04/schema#"
 
+/**
+ * json -> json schema
+ * @param context
+ * @param isRoot
+ */
 export function json2Jsonschema(context: ParseContext, isRoot = true) {
     let sc = {};
     if (context.commentMeta) {
@@ -48,19 +56,8 @@ export function json2Jsonschema(context: ParseContext, isRoot = true) {
         case ItemType.ARRAY:
             jsonArray2Jsonschema(context, sc);
             break;
-        case ItemType.STRING:
-            sc['type'] = 'string';
-            break;
-        case ItemType.BOOL:
-            sc['type'] = 'boolean';
-            break;
-        case ItemType.INT_NUMBER:
-            sc['type'] = 'integer';
-            break
-        case ItemType.FLOAT_NUMBER:
-            sc['type'] = 'number';
-            break;
         default:
+            jsonSimple2Jsonschema(context, sc);
     }
 
     if (isRoot) {
@@ -77,7 +74,10 @@ function jsonObject2Jsonschema(context: ParseContext, schemaResult: Record<strin
     schemaResult['type'] = 'object';
     context.commentMeta && (schemaResult['description'] = context.commentMeta.pureComment);
 
-    let propsSc = schemaResult['properties'] = {}
+    const propsSc = schemaResult['properties'] = {}
+
+    const requiredFieldSet = new Set();
+
     context.children?.forEach(prop => {
         let propSc = {};
         switch (prop.type) {
@@ -85,24 +85,32 @@ function jsonObject2Jsonschema(context: ParseContext, schemaResult: Record<strin
                 jsonObject2Jsonschema(prop, propSc);
                 break;
             case ItemType.ARRAY:
-                jsonArray2Jsonschema(prop, propSc)
+                jsonArray2Jsonschema(prop, propSc);
                 break;
-            case ItemType.STRING:
-                propSc['type'] = 'string';
-                break;
-            case ItemType.BOOL:
-                propSc['type'] = 'boolean';
-                break;
-            case ItemType.INT_NUMBER:
-                propSc['type'] = 'integer';
-                break
-            case ItemType.FLOAT_NUMBER:
-                propSc['type'] = 'number';
-                break;
+            // case ItemType.STRING:
+            //     propSc['type'] = 'string';
+            //     break;
+            // case ItemType.BOOL:
+            //     propSc['type'] = 'boolean';
+            //     break;
+            // case ItemType.INT_NUMBER:
+            //     propSc['type'] = 'integer';
+            //     break
+            // case ItemType.FLOAT_NUMBER:
+            //     propSc['type'] = 'number';
+            //     break;
+            default:
+                jsonSimple2Jsonschema(prop, propSc);
         }
         prop.commentMeta && (propSc['description'] = prop.commentMeta.pureComment);
         propsSc[prop.key + ''] = propSc;
+
+        if (prop.commentMeta?.schemaDescriptor?.['required']) {
+            requiredFieldSet.add(prop.key);
+        }
     })
+
+    schemaResult['required'] = Array.from(requiredFieldSet);
 
     return schemaResult;
 }
@@ -127,6 +135,36 @@ function jsonArray2Jsonschema(context: ParseContext, schemaResult: Record<string
         }
     }
     schemaResult['items'] = itemsSc;
+
+    return schemaResult;
+}
+
+function jsonSimple2Jsonschema(context: ParseContext, schemaResult: Record<string, unknown>) {
+    context.commentMeta && (schemaResult['description'] = context.commentMeta.pureComment);
+    switch (context.type) {
+        case ItemType.STRING:
+            schemaResult['type'] = 'string';
+            break;
+        case ItemType.BOOL:
+            schemaResult['type'] = 'boolean';
+            break;
+        case ItemType.INT_NUMBER:
+            schemaResult['type'] = 'integer';
+            break
+        case ItemType.FLOAT_NUMBER:
+            schemaResult['type'] = 'number';
+            break;
+    }
+
+    /**
+     * "mock": {
+     *   "mock": "@string"
+     * }
+     */
+    const mock = context.commentMeta?.schemaDescriptor?.['mock'];
+    if (mock) {
+        schemaResult['mock'] = {mock}
+    }
 
     return schemaResult;
 }

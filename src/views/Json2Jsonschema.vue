@@ -58,6 +58,7 @@ import "codemirror/addon/hint/show-hint.js"
 import "codemirror/addon/hint/anyword-hint.js"
 import "codemirror/addon/edit/matchbrackets.js"
 import "codemirror/addon/edit/closebrackets.js"
+import {DemoJson1} from "@/db/demodata";
 
 const ejs = require('ejs');
 
@@ -70,24 +71,7 @@ export default defineComponent({
     const tabPosition = ref('right');
     const result = ref('');
     const formState = reactive({
-      json: '/**\n' +
-          ' * 王者英雄 \n' +
-          ' * @author L&J\n' +
-          ' * @sine 2022-3-28 03:03:52\n' +
-          ' */\n' +
-          '{\n' +
-          '' +
-          '  // 姓名\n' +
-          '  "name": "张飞",\n' +
-          '  // 年龄\n' +
-          '  "age": 123,\n' +
-          '  // 经济\n' +
-          '  "money": 98700.123,\n' +
-          '  // 是否是坦克\n' +
-          '  "isTanke": true,\n' +
-          '  // 生日\n' +
-          '  "birthday": "2022-3-27 23:39:45"\n' +
-          '}',
+      json: DemoJson1,
       tpl: '',
     });
 
@@ -170,7 +154,7 @@ export default defineComponent({
       activeKey,
       tabPosition,
       labelCol: {span: 4},
-      wrapperCol: {span: 14},
+      wrapperCol: {span: 20},
       formState,
       result,
       parseError,

@@ -1364,9 +1364,15 @@ class JsonItemContext extends ParseContext {
 
 
 class CommentMeta {
-  static readonly N_LINE_RE = /(.*)(\n+|$)/;
+  static readonly N_LINE_RE = /^(.*)(\n+|$)/;
   static readonly SINGLE_LINE_CMMT_RE = /^\/\/\s*(.*?)\s*$/;
-  static readonly WORD_RE = /(\S+)/;
+  static readonly WORD_RE = /^(\S+)/;
+  static readonly SPACE_RE = /^(\s+)/;
+  /**
+   * scdValue 可选的 scdKey
+   */
+  static readonly OPTIONAL_SCD_VALUE_SCD_KEY_SET = new Set(['required'])
+
   /**
    * 原始注释内容
    */
@@ -1439,40 +1445,111 @@ class CommentMeta {
       pure += (pure ? "\n" + pureLine : pureLine);
 
       let scdKey;
-      for (let i = 1; i < line.length; i++) { // 注释, 0 位置不会是有效内容的
-        let curr = line.charAt(i);
+      let esc;
+      for (let i = 0; i < pureLine.length;) { // 注释, 0 位置不会是有效内容的; !! 逢 continue 要考虑在前面++
+        let curr = pureLine.charAt(i);
         if (curr == ' ' || curr == '\t') {
+          i++
           continue;
         }
+        /*if (curr == '\\') {
+          if (pureLine.charAt(i - 1) != '\\') {
+            esc = true;
+            i++
+            continue;
+          }
+          // 连续 \\
+          if (esc) {
+            esc = false; // 后面
+          } else {
+            esc = true; // 我是转义咯
+          }
 
-        if (curr == '@' && line.charAt(i-1) != '\\' && i < line.length - 1) { // 考虑 '@' 占一位
-          const w = CommentMeta.WORD_RE.exec(line.substr(i+1, 256));
+          i++
+          continue;
+        }*/
+
+        if (curr == '@' && pureLine.charAt(i-1) != '\\' && i < pureLine.length - 1) { // 考虑 '@' 占一位
+          const w = CommentMeta.WORD_RE.exec(pureLine.substr(i+1, 256));
           if (w) {
             scdKey = w[1];
           } else {
+            i++
             continue; // 没有 scdKey, 忽略孤零零的 '@'
           }
 
-          i += w[0].length;
-          continue;
+          i += w[0].length + 1;
+          // continue; // 往下走, 防止 @required 这种无需value的遗漏咯
         }
 
         if (scdKey != undefined) {
-          // scdValue todo " ' 包裹
-          const w = CommentMeta.WORD_RE.exec(line.substr(i, 256));
-          if (w) {
-            /*暂不做有效性校验, 一股脑放入*/
-            this.schemaDescriptor[scdKey] = w[1];
-            i += w[0].length - 1;
+          // scdValue TO-DO 支持 " ' 包裹
+          /*
+           * scdKey 后内容, 直到下一个 scdKey 出现
+           */
+           let scdValue = '';
+          while (i < pureLine.length) {
+            let scdValueExec = CommentMeta.SPACE_RE.exec(pureLine.substr(i));
+            if (scdValueExec) {
+              // 开头的空白符不累加
+              scdValue && (scdValue += scdValueExec[0]);
+              i += scdValueExec[0].length
+              continue;
+            }
+            scdValueExec = CommentMeta.WORD_RE.exec(pureLine.substr(i));
+            if (!scdValueExec) {
+              // 没有内容了, not possible
+              break;
+            }
+            if (scdValueExec[0].startsWith("@")) {
+              // i-- 抵消下文i++的影响
+              --i;
+              break; // 下一个 scdKey, i不位移
+            }
+            scdValue += scdValueExec[0];
+            i += scdValueExec[0].length;
+          }
+          /*暂不做有效性校验, 一股脑放入*/
+          debugger
+          if (scdKey == 'mock') {
+            debugger;
+          }
+          const parsedScdValue = this.parseScdValue(scdKey, scdValue);
+          if (parsedScdValue !== undefined) {
+            this.schemaDescriptor[scdKey] = parsedScdValue;
           }
 
           // 当前的 scdKey 的 scdValue 不论有无, 都要结束当前 k-v
           scdKey = undefined;
         }
+
+        i++;
       }
     }
 
     this.pureComment = pure;
+  }
+
+  parseScdValue(scdKey: string, scdValue: string) {
+    scdValue = scdValue?.trim();
+    if (!scdValue) {
+      if (CommentMeta.OPTIONAL_SCD_VALUE_SCD_KEY_SET.has(scdKey)) {
+        return true;
+      }
+      return undefined;
+    }
+
+    if ("true" == scdValue || "TRUE" == scdValue) {
+      return true;
+    }
+    if ("false" == scdValue || "FALSE" == scdValue) {
+      return false;
+    }
+
+    // 剔除转义, 如 @mock 的 \@datetime
+    scdValue = scdValue.replaceAll("\\", "");
+
+    return scdValue;
   }
 }
 

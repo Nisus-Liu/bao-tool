@@ -6,17 +6,17 @@
           <a-form-item label="JSON">
             <Codemirror v-model:value="formState.json" :options="cmOptions" :height="400" border @change="onJsonChange" />
           </a-form-item>
-          <template v-if="toggleSearchStatus">
+          <!--<template v-if="toggleSearchStatus">
             <a-form-item label="模板">
               <Codemirror v-model:value="formState.tpl" :options="cmOptions" :height="200" border />
             </a-form-item>
-          </template>
+          </template>-->
           <a-form-item :wrapper-col="{ span: 14, offset: 4 }">
-            <a @click="handleToggleSearch" style="margin-right: 8px">
+            <!--<a @click="handleToggleSearch" style="margin-right: 8px">
               {{ toggleSearchStatus ? '收起' : '展开' }}
-              <!--<a-icon :type="toggleSearchStatus ? 'up' : 'down'"/>-->
+              &lt;!&ndash;<a-icon :type="toggleSearchStatus ? 'up' : 'down'"/>&ndash;&gt;
               <DownOutlined v-if="toggleSearchStatus"/><UpOutlined v-else />
-            </a>
+            </a>-->
             <a-button type="primary" @click="onSubmit">确定</a-button>
             <!--<a-button style="margin-left: 10px">Cancel</a-button>-->
           </a-form-item>
@@ -58,38 +58,20 @@ import "codemirror/addon/hint/show-hint.js"
 import "codemirror/addon/hint/anyword-hint.js"
 import "codemirror/addon/edit/matchbrackets.js"
 import "codemirror/addon/edit/closebrackets.js"
+import {DemoJson1} from "@/db/demodata";
 
-const ejs = require('ejs');
+// const ejs = require('ejs');
 
 export default defineComponent({
   components: {
     Codemirror,
-    DownOutlined,
-    UpOutlined,
   },
   setup() {
     const activeKey = ref('1');
     const tabPosition = ref('right');
     const result = ref('');
     const formState = reactive({
-      json: '/**\n' +
-          ' * 王者英雄 \n' +
-          ' * @author L&J\n' +
-          ' * @sine 2022-3-28 03:03:52\n' +
-          ' */\n' +
-          '{\n' +
-          '' +
-          '  // 姓名\n' +
-          '  "name": "张飞",\n' +
-          '  // 年龄\n' +
-          '  "age": 123,\n' +
-          '  // 经济\n' +
-          '  "money": 98700.123,\n' +
-          '  // 是否是坦克\n' +
-          '  "isTanke": true,\n' +
-          '  // 生日\n' +
-          '  "birthday": "2022-3-27 23:39:45"\n' +
-          '}',
+      json: DemoJson1,
       tpl: '',
     });
 
@@ -169,7 +151,7 @@ export default defineComponent({
       activeKey,
       tabPosition,
       labelCol: {span: 4},
-      wrapperCol: {span: 14},
+      wrapperCol: {span: 20},
       formState,
       result,
       parseError,
