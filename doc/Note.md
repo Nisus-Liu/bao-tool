@@ -15,6 +15,8 @@
 
 * [Mock.js](http://mockjs.com/examples.html)
 
+* ? 怎么更换图标?
 
+使用 --config 指定配置后, package.json>main 需要改成 `"main": "dist_electron/bundled/background.js",`
 
 

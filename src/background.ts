@@ -4,6 +4,7 @@ import { app, protocol, BrowserWindow, ipcMain } from 'electron'
 import { createProtocol } from 'vue-cli-plugin-electron-builder/lib'
 import installExtension, { VUEJS3_DEVTOOLS } from 'electron-devtools-installer'
 import ipcMainHandler from "@/ipc/ipc_main_handle";
+import * as path from "path";
 const isDevelopment = process.env.NODE_ENV !== 'production'
 
 // Scheme must be registered before the app is ready
@@ -28,8 +29,13 @@ async function createWindow() {
       nodeIntegration: true,
       contextIsolation: !(process.env
           .ELECTRON_NODE_INTEGRATION as unknown) as boolean
-    }
-  })
+    },
+    // window
+    icon: path.join(__dirname, './assets/icon/icon.ico')
+  });
+  // if (process.platform === 'darwin') {
+  //   app.dock.setIcon(path.join(__dirname, './assets/icon/icon.icns'));
+  // }
 
   if (process.env.WEBPACK_DEV_SERVER_URL) {
     // Load the url of the dev server if in development mode
