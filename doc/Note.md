@@ -20,3 +20,11 @@
 使用 --config 指定配置后, package.json>main 需要改成 `"main": "dist_electron/bundled/background.js",`
 
 
+* Vue CLI Plugin Electron Builder
+
+[Configuration | Vue CLI Plugin Electron Builder](https://nklayman.github.io/vue-cli-plugin-electron-builder/guide/configuration.html#table-of-contents)
+To see available options, check out Electron Builder Configuration Options([Common Configuration - electron-builder](https://www.electron.build/configuration/configuration))
+
+
+
+
