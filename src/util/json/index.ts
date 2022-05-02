@@ -823,7 +823,7 @@ class JsonParser {
 
   /**
    *
-   * com.alibaba.fastjson.parser.DefaultJSONParser#parseObject(java.util.Map, java.lang.Object) (v1.2.73)
+   * com.alibaba.fastjson.parser.DefaultJSONParser#parseObject(java.util.Map, java.lang.Object) (v1.2.73) 180行
    * @param ctx
    * @param fieldName
    */
@@ -1005,7 +1005,7 @@ class JsonParser {
         }
 
         itemCtx = new JsonArrayContext(context, key);
-        this.parseArray(itemCtx, key); // 内部不需要 new context 了, item 直接添加.
+        this.parseArray(itemCtx, key); // 内部不需要 new context 了, item 直接添加. 由于传入 itemCtx 下面要复位位它的上层context
 
         context?.add(itemCtx);
 
@@ -1123,87 +1123,89 @@ class JsonParser {
     // }
 
     let context = ctx;
-    // try {
-    for (let i = 0; ; ++i) {
-      // if (lexer.isEnabled(Feature.AllowArbitraryCommas)) {
-      while (lexer.token() == JsonToken.COMMA) {
-        lexer.nextToken();
-        continue;
-      }
-      // }
+    try {
+      for (let i = 0; ; ++i) {
+        // if (lexer.isEnabled(Feature.AllowArbitraryCommas)) {
+        while (lexer.token() == JsonToken.COMMA) {
+          lexer.nextToken();
+          continue;
+        }
+        // }
 
-      // @ts-ignore
-      let value: ParseContext = null;
-      switch (lexer.token()) {
-        case JsonToken.LITERAL_NUMBER:
-          value = new JsonItemContext(context, i, lexer.numberValue());
-          lexer.nextTokenExpect(JsonToken.COMMA);
-          break;
-        case JsonToken.LITERAL_STRING:
-          let stringLiteral = lexer.stringValue();
-          lexer.nextTokenExpect(JsonToken.COMMA);
+        // @ts-ignore
+        let value: ParseContext = null;
+        switch (lexer.token()) {
+          case JsonToken.LITERAL_NUMBER:
+            value = new JsonItemContext(context, i, lexer.numberValue());
+            lexer.nextTokenExpect(JsonToken.COMMA);
+            break;
+          case JsonToken.LITERAL_STRING:
+            let stringLiteral = lexer.stringValue();
+            lexer.nextTokenExpect(JsonToken.COMMA);
 
-          // if (lexer.isEnabled(Feature.AllowISO8601DateFormat)) {
-          //   JSONScanner iso8601Lexer = new JSONScanner(stringLiteral);
-          //   if (iso8601Lexer.scanISO8601DateIfMatch()) {
-          //     value = iso8601Lexer.getCalendar().getTime();
-          //   } else {
-          //     value = stringLiteral;
-          //   }
-          //   iso8601Lexer.close();
-          // } else {
-          value = new JsonItemContext(context, i, stringLiteral);
-          // }
+            // if (lexer.isEnabled(Feature.AllowISO8601DateFormat)) {
+            //   JSONScanner iso8601Lexer = new JSONScanner(stringLiteral);
+            //   if (iso8601Lexer.scanISO8601DateIfMatch()) {
+            //     value = iso8601Lexer.getCalendar().getTime();
+            //   } else {
+            //     value = stringLiteral;
+            //   }
+            //   iso8601Lexer.close();
+            // } else {
+            value = new JsonItemContext(context, i, stringLiteral);
+            // }
 
-          break;
-        case JsonToken.TRUE:
-          value = new JsonItemContext(context, i, true);
-          lexer.nextTokenExpect(JsonToken.COMMA);
-          break;
-        case JsonToken.FALSE:
-          value = new JsonItemContext(context, i, false);
-          lexer.nextTokenExpect(JsonToken.COMMA);
-          break;
-        case JsonToken.LBRACE:
-          let objectCtx = new JsonObjectContext(context, fieldName);
-          this.parseObject(objectCtx, i);
-          objectCtx.comment += this.lexer.resetCommentBuff();
-          value = objectCtx;
-          break;
-        case JsonToken.LBRACKET:
-          let arrayCtx = new JsonArrayContext(context, fieldName);
-          this.parseArray(arrayCtx, i);
-          value = arrayCtx;
-          break;
-        case JsonToken.NULL:
-          value = new JsonItemContext(context, i, null);
+            break;
+          case JsonToken.TRUE:
+            value = new JsonItemContext(context, i, true);
+            lexer.nextTokenExpect(JsonToken.COMMA);
+            break;
+          case JsonToken.FALSE:
+            value = new JsonItemContext(context, i, false);
+            lexer.nextTokenExpect(JsonToken.COMMA);
+            break;
+          case JsonToken.LBRACE:
+            let objectCtx = new JsonObjectContext(context, i);
+            this.parseObject(objectCtx, i);
+            objectCtx.comment += this.lexer.resetCommentBuff();
+            value = objectCtx;
+            break;
+          case JsonToken.LBRACKET:
+            let arrayCtx = new JsonArrayContext(context, i);
+            this.parseArray(arrayCtx, i);
+            value = arrayCtx;
+            break;
+          case JsonToken.NULL:
+            value = new JsonItemContext(context, i, null);
+            lexer.nextTokenExpect(JsonToken.LITERAL_STRING);
+            break;
+          case JsonToken.UNDEFINED:
+            value = new JsonItemContext(context, i, null);
+            lexer.nextTokenExpect(JsonToken.LITERAL_STRING);
+            break;
+          case JsonToken.RBRACKET:
+            lexer.nextTokenExpect(JsonToken.COMMA);
+            return;
+          case JsonToken.EOF:
+            throw new Error("unclosed jsonArray");
+          default:
+            // value = parse(); // 暂不考虑
+            break;
+        }
+
+        value && context.add(value);
+        // checkListResolve(array);
+
+        if (lexer.token() == JsonToken.COMMA) {
           lexer.nextTokenExpect(JsonToken.LITERAL_STRING);
-          break;
-        case JsonToken.UNDEFINED:
-          value = new JsonItemContext(context, i, null);
-          lexer.nextTokenExpect(JsonToken.LITERAL_STRING);
-          break;
-        case JsonToken.RBRACKET:
-          lexer.nextTokenExpect(JsonToken.COMMA);
-          return;
-        case JsonToken.EOF:
-          throw new Error("unclosed jsonArray");
-        default:
-          // value = parse(); // 暂不考虑
-          break;
+          continue;
+        }
       }
-
-      value && context.add(value);
-      // checkListResolve(array);
-
-      if (lexer.token() == JsonToken.COMMA) {
-        lexer.nextTokenExpect(JsonToken.LITERAL_STRING);
-        continue;
-      }
+    } finally {
+      // 如 [{}] 内部会改变 this.context, 所以这里一定要复位
+      // this.context = context;
+      this.context = context.parent ? context.parent : context; // 我这里 context 是传入的 item context
     }
-    // } finally {
-    //   this.context = context;
-    // }
   }
 
   parse() {

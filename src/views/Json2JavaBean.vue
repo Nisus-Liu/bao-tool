@@ -58,7 +58,7 @@ import "codemirror/addon/hint/show-hint.js"
 import "codemirror/addon/hint/anyword-hint.js"
 import "codemirror/addon/edit/matchbrackets.js"
 import "codemirror/addon/edit/closebrackets.js"
-import {DemoJson1} from "@/db/demodata";
+import {DemoJson1, Test1} from "@/db/demodata";
 
 // const ejs = require('ejs');
 
@@ -71,7 +71,8 @@ export default defineComponent({
     const tabPosition = ref('right');
     const result = ref('');
     const formState = reactive({
-      json: DemoJson1,
+      // json: DemoJson1,
+      json: Test1,
       tpl: '',
     });
 

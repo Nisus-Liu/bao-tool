@@ -1,3 +1,7 @@
+export const Test1 = `{
+  "name": [{}],
+  "age": 123
+}`
 
 export const DemoJson1 = `/**
  * 王者英雄
