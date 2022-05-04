@@ -4,7 +4,7 @@
       <a-tab-pane key="1" tab="配置">
         <a-form :model="formState" :label-col="labelCol" :wrapper-col="wrapperCol">
           <a-form-item label="JSON">
-            <Codemirror v-model:value="formState.json" :options="cmOptions" :height="400" border @change="onJsonChange" />
+            <Codemirror ref="cm1Ref" v-model:value="formState.json" :options="cmOptions" :height="400" border @change="onJsonChange" />
           </a-form-item>
           <!--<template v-if="toggleSearchStatus">
             <a-form-item label="模板">
@@ -39,7 +39,7 @@
 </template>
 
 <script lang="ts">
-import {defineComponent, reactive, ref, toRaw} from 'vue';
+import {defineComponent, onMounted, reactive, ref, toRaw} from 'vue';
 import ipcRenderWrap from "@/ipc/ipc_render_wrap";
 import {IpcChannel} from "@/ipc/ipc_channel";
 import JsonParser, {ParseContext} from "@/util/json";
@@ -49,6 +49,7 @@ import {
   UpOutlined,
 } from '@ant-design/icons-vue';
 import Codemirror from "codemirror-editor-vue3";
+// import type { EditorConfiguration } from "codemirror";
 // language
 import "codemirror/mode/javascript/javascript.js";
 // theme
@@ -59,8 +60,14 @@ import "codemirror/addon/hint/anyword-hint.js"
 import "codemirror/addon/edit/matchbrackets.js"
 import "codemirror/addon/edit/closebrackets.js"
 import {DemoJson1, Test1} from "@/db/demodata";
+import CodeMirror from 'codemirror';
 
-// const ejs = require('ejs');
+const AT_KEYWORDS = [
+  "required",
+  "className",
+  "minLength", "maxLength",
+  "minimum", "maximum",
+]
 
 export default defineComponent({
   components: {
@@ -113,6 +120,34 @@ export default defineComponent({
       activeKey.value = '2';
     };
 
+    const cm1Ref = ref();
+    function getHints (cm, option) {
+      return new Promise((accept) => {
+        setTimeout(() => {
+          let list: Array<any> = [];
+          // let atKwRe = /@\w*/;
+          let cursor = cm.getCursor(), curLine = cm.getLine(cursor.line)
+          let start = cursor.ch, end = cursor.ch
+          const lastAtIx = curLine.lastIndexOf('@');
+          if (lastAtIx >= 0) {
+            const pre = curLine.substring(lastAtIx +1);
+            if (pre) {
+              list = AT_KEYWORDS
+                  .filter(it => it.startsWith(pre))
+                  .map(it => it.substr(pre.length));
+            } else {
+              list = AT_KEYWORDS;
+            }
+          }
+
+          return accept({list: list,
+            from: CodeMirror.Pos(cursor.line, start),
+            to: CodeMirror.Pos(cursor.line, end)})
+        }, 100)
+
+      })
+    }
+
     const cmOptions = {
       tabSize: 4,
       // mode: 'text/javascript',  // 模式
@@ -133,7 +168,25 @@ export default defineComponent({
       matchBrackets: true, // 括号匹配高亮
       autoCloseBrackets: true, // 括号自动补全
       // 更多配置查询 https://codemirror.net/doc/manual.html#config
+      // ^^代码提示配置
+      // showHint: true, // 貌似不需要
+      hintOptions: {
+        completeSingle: false,
+        alignWithWord: false,
+        hint: getHints,
+      }
+      // $$代码提示配置
     };
+
+    onMounted(() => {
+      // cminstance 拿到原始 cm 对象
+      let editor = cm1Ref.value.cminstance;
+      console.log("---------onMounted-----", editor);
+      // //代码自动提示功能，记住使用cursorActivity事件不要使用change事件，这是一个坑，那样页面直接会卡死
+      editor.on('inputRead', function () {
+        editor.showHint()
+      })
+    })
 
     const onJsonChange = (evt) => {
       // console.log('onJsonChange', evt);
@@ -162,6 +215,7 @@ export default defineComponent({
       onJsonChange,
       toggleSearchStatus,
       handleToggleSearch,
+      cm1Ref,
     };
   },
 });

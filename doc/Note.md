@@ -34,3 +34,29 @@ To see available options, check out Electron Builder Configuration Options([Comm
 A: 手动下载放到目录下([打包成安装包错误，下载不来winCodeSign · Issue #26 · trazyn/weweChat · GitHub](https://github.com/trazyn/weweChat/issues/26))
 ![img.png](img.png)
 
+* `codemirror-editor-vue3` 代码提示配置
+
+1. options
+```
+hintOptions: {
+    completeSingle: false,
+    alignWithWord: false,
+    hint: getHints, // 返回代码提示的结构. list,from,to
+}
+```
+2. onMounted
+```
+onMounted(() => {
+  // cminstance 拿到原始 cm 对象
+  let editor = cm1Ref.value.cminstance;
+  console.log("---------onMounted-----", editor);
+  // //代码自动提示功能，记住使用cursorActivity事件不要使用change事件，这是一个坑，那样页面直接会卡死
+  editor.on('inputRead', function () {
+    editor.showHint()
+  })
+})
+```
+
+[(74条消息) 实现codemirror的自定义提示的功能_maya1024的博客-CSDN博客_codemirror代码提示](https://blog.csdn.net/high32/article/details/117049672)
+[CodeMirror代码提示功能 - 掘金](https://juejin.cn/post/6844904013180174343)
+[codeMirror_dome/HelloWorld.vue at master · mingju0421/codeMirror_dome · GitHub](https://github.com/mingju0421/codeMirror_dome/blob/master/src/components/HelloWorld.vue)
