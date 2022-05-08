@@ -13,7 +13,11 @@ import "codemirror/addon/edit/closebrackets.js"
 
 const AT_KEYWORDS = [
   "required",
+  // java doc
   "className",
+  "author",
+  "since",
+  // json schema
   "minLength", "maxLength",
   "minimum", "maximum",
 ]

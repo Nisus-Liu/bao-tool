@@ -1379,6 +1379,9 @@ class CommentMeta {
    * 原始注释内容
    */
   comment: StringNN;
+  /**
+   * 剔除注释符号后的注释内容
+   */
   pureComment: StringNN;
   /**
    * json schema 相关的规范描述. 如: {"minLength": 2, "maxLength": 3}

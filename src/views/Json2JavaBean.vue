@@ -6,6 +6,15 @@
           <a-form-item label="JSON">
             <Codemirror ref="jsonCmRef" v-model:value="formState.json" :options="cmOptions" :height="400" border @change="onJsonChange" />
           </a-form-item>
+          <a-form-item>
+            <template v-slot:label>Javadoc注释
+              <a-tooltip title="注释是否统一成Javadoc格式的注释"><QuestionCircleOutlined style="margin-left: 8px" /></a-tooltip>
+            </template>
+            <a-radio-group v-model:value="formState.isJavadocComment">
+              <a-radio value="1">是</a-radio>
+              <a-radio value="">否</a-radio>
+            </a-radio-group>
+          </a-form-item>
           <!--<template v-if="toggleSearchStatus">
             <a-form-item label="模板">
               <Codemirror v-model:value="formState.tpl" :options="cmOptions" :height="200" border />
@@ -47,11 +56,13 @@ import {json2JavaBean} from "@/util/render";
 import Codemirror from "codemirror-editor-vue3";
 import {DemoJson1, Test1} from "@/db/demodata";
 import useCmConfig from "@/composables/useCmConfig";
+import { QuestionCircleOutlined } from '@ant-design/icons-vue';
 
 
 export default defineComponent({
   components: {
     Codemirror,
+    QuestionCircleOutlined,
   },
   setup() {
     const activeKey = ref('1');
@@ -61,6 +72,7 @@ export default defineComponent({
       // json: DemoJson1,
       json: Test1,
       tpl: '',
+      isJavadocComment: '1',
     });
 
     // 拿到默认 template
@@ -85,7 +97,7 @@ export default defineComponent({
       }
       console.log("----> context: ", context)
       // result.value = ejs.render(formState.tpl, {context});
-      result.value = json2JavaBean(context);
+      result.value = json2JavaBean(context, {...formState});
     }
 
     function onTabChange(currKey) {

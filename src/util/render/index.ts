@@ -4,10 +4,16 @@ import {DateFormat} from "@/util";
 /**
  * json -> java bean
  * @param context
+ * @param config
  */
-export function json2JavaBean(context: ParseContext) {
-  return `// Auto generate at ${new DateFormat().format(DateFormat.DATE_TIME_FMT)}
-${context.comment?.trim()}
+export function json2JavaBean(context: ParseContext, config: Record<string, unknown> = {}) {
+    // 涉及到 comment 既定配置, 才去 parseComment
+    if (config.isJavadocComment) {
+        context.parseComment();
+    }
+
+    // // Auto generate at ${new DateFormat().format(DateFormat.DATE_TIME_FMT)}
+  return `${config.isJavadocComment ? toJavadocComment(context.commentMeta?.pureComment) : context.comment?.trim()}
 public class JavaBean {
     ${context.children?.map(it => {
     let type = 'Object';
@@ -29,10 +35,18 @@ public class JavaBean {
             break;
     }
 
-    return `${it.comment ? it.comment.trim() : ''}
+    return `${config.isJavadocComment ? toJavadocComment(it.commentMeta?.pureComment) : it.comment?.trim()}
     private ${type} ${it.key};`
 }).join('\n    ')}
-}`
+}`;
+}
+
+function toJavadocComment(pureCmmt) {
+    if (!pureCmmt) {
+        return '';
+    }
+    // 暂不考虑格式化(缩进)
+    return '/**\n' + pureCmmt + '\n*/';
 }
 
 // ----
@@ -44,6 +58,9 @@ const JSON_SCHEMA_DRAFT = "http://json-schema.org/draft-04/schema#"
  * @param isRoot
  */
 export function json2Jsonschema(context: ParseContext, isRoot = true) {
+    context.parseComment();
+    // console.log("--parseComment--> context: ", context)
+
     let sc = {};
     if (context.commentMeta) {
         sc['description'] = context.commentMeta.pureComment;
