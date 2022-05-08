@@ -1,10 +1,10 @@
 <template>
   <a-layout style="min-height: 100vh">
-    <a-layout-sider v-model:collapsed="collapsed" collapsible>
+    <a-layout-header v-model:collapsed="collapsed" collapsible>
       <div class="logo" >
-        BAO
+        <span>BAO</span>
       </div>
-      <a-menu theme="dark" v-model:selectedKeys="selectedKeys" mode="inline">
+      <a-menu theme="dark" v-model:selectedKeys="selectedKeys" mode="horizontal">
         <a-menu-item key="home">
           <router-link to="/home">Home</router-link>
         </a-menu-item>
@@ -23,9 +23,9 @@
           <router-link to="/about">About</router-link>
         </a-menu-item>
       </a-menu>
-    </a-layout-sider>
+    </a-layout-header>
     <a-layout>
-      <a-layout-header style="background: #fff; padding: 0" />
+      <!--<a-layout-header style="background: #fff; padding: 0" />-->
       <a-layout-content style="margin: 16px 16px">
         <router-view/>
       </a-layout-content>
@@ -46,11 +46,20 @@ export default {
 }
 </script>
 
-<style scoped>
+<style lang="scss" scoped>
 .logo {
+  float: left;
+  width: 120px;
   height: 32px;
-  margin: 16px;
-  background: rgba(255, 255, 255, 0.3);
+  line-height: 32px;
+  margin: 16px 24px 16px 0;
+  /*background: rgba(255, 255, 255, 0.3);*/
+  background: url("../assets/icon/bao-tool-icon-shuanger.png") center center no-repeat;
+  background-size: 100%;
+  span {
+    color: #e1e1e1;
+    font-weight: bold;
+  }
 }
 
 .site-layout .site-layout-background {
