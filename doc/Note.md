@@ -12,7 +12,6 @@
   [sindresorhus/electron-store: Simple data persistence for your Electron app or module - Save and load user preferences, app state, cache, etc](https://github.com/sindresorhus/electron-store)
   [Electron存储简单数据和用户首选项推荐用electron-store](https://xushanxiang.com/electron-store.html)
   
-
 * [Mock.js](http://mockjs.com/examples.html)
 
 * ? 怎么更换图标?
@@ -60,3 +59,18 @@ onMounted(() => {
 [(74条消息) 实现codemirror的自定义提示的功能_maya1024的博客-CSDN博客_codemirror代码提示](https://blog.csdn.net/high32/article/details/117049672)
 [CodeMirror代码提示功能 - 掘金](https://juejin.cn/post/6844904013180174343)
 [codeMirror_dome/HelloWorld.vue at master · mingju0421/codeMirror_dome · GitHub](https://github.com/mingju0421/codeMirror_dome/blob/master/src/components/HelloWorld.vue)
+
+
+
+## 发布
+
+供下载使用.
+
+[electron 应用打包后自动发布至 GitHub Releases · Tit1e](http://evolly.one/p/20107.html)
+
+[通过electron-builder构建electron应用发布git release - 本人的窝](https://www.1zilc.top/javascript/%E9%80%9A%E8%BF%87electron-builder%E6%9E%84%E5%BB%BAelectron%E5%BA%94%E7%94%A8%E5%8F%91%E5%B8%83git-release/1zilc/)
+
+[使用 CI 构建和发布 electron 应用](https://blog.sigoden.com/build-and-publish-electron-app-with-ci/) (应该不错 Travis Linux|Mac; AppVeyor window)
+
+
+
