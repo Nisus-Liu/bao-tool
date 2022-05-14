@@ -1,0 +1,25 @@
+platform:
+  - x64
+
+cache:
+  - node_modules
+  - '%APPDATA%\npm-cache'
+  - '%USERPROFILE%\.electron'
+
+install:
+  - ps: Install-Product node 8 x64
+  - yarn install
+
+build_script:
+  - yarn run dist
+
+test: off
+
+branches:
+  only:
+    - master
+
+environment:
+  GH_TOKEN:
+    # [Encrypt configuration data - AppVeyor](https://ci.appveyor.com/tools/encrypt) 加密得到
+    secure: g8le48GwYrCz+q/BzjHx6eQr2KXjEzYdnCDd3SHPSY51GUcL4BvjNfseGYEqxKLQ

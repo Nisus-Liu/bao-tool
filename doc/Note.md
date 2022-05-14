@@ -72,5 +72,26 @@ onMounted(() => {
 
 [使用 CI 构建和发布 electron 应用](https://blog.sigoden.com/build-and-publish-electron-app-with-ci/) (应该不错 Travis Linux|Mac; AppVeyor window)
 
+### 配置
+
+https://www.electron.build/configuration/publish#how-to-publish
+
+| Value          | Description                            |
+| :------------- | :------------------------------------- |
+| `onTag`        | on tag push only                       |
+| `onTagOrDraft` | on tag push or if draft release exists |
+| `always`       | always publish                         |
+| `never`        | never publish                          |
+
+### GH_TOKEN
 
 
+
+## github <-> gitee 同步
+(手动同步)
+
+```
+git remote add github git@github.com:Nisus-Liu/bao-tool.git
+git pull origin feature/v1 // 拉取 gittee 的最新分支代码 (本仓库 origin 是 gitee 别名)
+git push github feature/v1
+```

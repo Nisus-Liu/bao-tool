@@ -13,7 +13,8 @@
     "electron:serve": "vue-cli-service electron:serve --config electron-builder-conf.js",
     "postinstall": "electron-builder install-app-deps",
     "postuninstall": "electron-builder install-app-deps",
-    "electron:publish": "vue-cli-service electron:build --config electron-builder-conf.js --publish always"
+    "electron:publish": "vue-cli-service electron:build --config electron-builder-conf.js --publish always",
+    "dist": "electron-builder --publish onTagOrDraft"
   },
   "main": "dist_electron/bundled/background.js",
   "dependencies": {
@@ -57,5 +58,37 @@
     "vue-cli-plugin-electron-builder": "~2.1.1",
     "vue-jest": "^5.0.0-0"
   },
-  "postinstall": "electron-builder install-app-deps"
+  "postinstall": "electron-builder install-app-deps",
+  "build": {
+    "appId": "com.nisus.baotool",
+    "productName": "BaoTool",
+    "copyright": "Copyright © 2022 ${author}",
+    "mac": {
+      "category": "public.app-category.utilities"
+    },
+    "dmg": {
+      "contents": [
+        {
+          "x": 110,
+          "y": 150
+        },
+        {
+          "x": 240,
+          "y": 150,
+          "type": "link",
+          "path": "/Applications"
+        }
+      ]
+    },
+    "win": {
+      "target": "nsis"
+    },
+    "linux": {
+      "category": "Utility",
+      "target": [
+        "deb",
+        "AppImage"
+      ]
+    }
+  }
 }
