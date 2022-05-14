@@ -1,0 +1,32 @@
+osx_image: xcode8.3
+
+dist: trusty
+sudo: false
+
+language: node_js
+node_js: "8"
+
+env:
+  global:
+    - ELECTRON_CACHE=$HOME/.cache/electron
+    - ELECTRON_BUILDER_CACHE=$HOME/.cache/electron-builder
+#    - secure: "<encrypted data>"
+
+os:
+  - linux
+  - osx
+
+cache:
+  directories:
+    - node_modules
+    - $HOME/.cache/electron
+    - $HOME/.cache/electron-builder
+    - $HOME/.npm/_prebuilds
+
+script:
+  - yarn run publish
+
+branches:
+  only:
+    - master
+

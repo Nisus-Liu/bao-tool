@@ -11,7 +11,7 @@ install:
   - yarn install
 
 build_script:
-  - yarn run dist
+  - yarn run publish
 
 test: off
 

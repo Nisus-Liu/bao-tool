@@ -62,6 +62,16 @@ onMounted(() => {
 
 
 
+-  Please move 'build' into the development package.json 
+
+  [Electron Vue 打包错误： InvalidConfigurationError: ‘build‘ in the application package.json_luxiu-yuruyan的博客-CSDN博客](https://blog.csdn.net/KYuruyan/article/details/119948460)
+
+- package.json script rm cp ... 命令跨环境
+
+  [npm script 跨端兼容的实现 - 掘金](https://juejin.cn/post/6844903860864188430)
+
+  `yarn add make-dir-cli rimraf cpr cross-var -D ` 
+
 ## 发布
 
 供下载使用.
