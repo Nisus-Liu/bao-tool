@@ -82,6 +82,8 @@ onMounted(() => {
 
 [使用 CI 构建和发布 electron 应用](https://blog.sigoden.com/build-and-publish-electron-app-with-ci/) (应该不错 Travis Linux|Mac; AppVeyor window)
 
+[记录一次electron开发和持续集成 - 简书](https://www.jianshu.com/p/add047a84e85) (access_token)
+
 ### 配置
 
 https://www.electron.build/configuration/publish#how-to-publish
