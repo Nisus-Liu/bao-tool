@@ -20,6 +20,6 @@ branches:
     - master
 
 environment:
-  access_token:
+  GH_TOKEN:
     # [Encrypt configuration data - AppVeyor](https://ci.appveyor.com/tools/encrypt) 加密得到
     secure: g8le48GwYrCz+q/BzjHx6eQr2KXjEzYdnCDd3SHPSY51GUcL4BvjNfseGYEqxKLQ
