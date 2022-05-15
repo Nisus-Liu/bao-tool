@@ -84,6 +84,8 @@ onMounted(() => {
 
 [记录一次electron开发和持续集成 - 简书](https://www.jianshu.com/p/add047a84e85) (access_token)
 
+[(75条消息) 利用 AppVeyor 实现 GitHub 托管项目的自动化集成_章志强的博客-CSDN博客_appveyor编译](https://blog.csdn.net/zhangzq86/article/details/55657495)
+
 ### 配置
 
 https://www.electron.build/configuration/publish#how-to-publish
@@ -142,6 +144,8 @@ package.json
 ```
 
 
+
+* 切换成 private 后, HttpError: 401 Unauthorized
 
 
 
