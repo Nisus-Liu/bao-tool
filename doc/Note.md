@@ -98,6 +98,55 @@ https://www.electron.build/configuration/publish#how-to-publish
 ### GH_TOKEN
 
 
+*!! CI 工具貌似需要在 AppVeyor 等平台上操作.* 
+
+
+
+### npm script 命令方式
+
+[electron 应用打包后自动发布至 GitHub Releases · Tit1e](http://evolly.one/p/20107.html)
+
+GH_TOKEN 环境变量
+
+方式1:
+
+```
+cross-env GH_TOKEN=xxx
+// or
+set GH_TOKEN=xxx (git token)
+```
+
+方式2:
+
+```
+"config": {
+	"GH_TOKEN": "xxx"
+},
+```
+
+
+
+- 配置方便
+- 每个平台需要单独发布(繁琐些)
+
+
+
+vue.config.js
+
+```
+pluginOptions.electronBuilder.builderOptions
+```
+
+package.json
+
+```
+"publish": "rimraf dist_electron && cross-env GH_TOKEN=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 vue-cli-service electron:build --publish always"
+```
+
+
+
+
+
 
 ## github <-> gitee 同步
 (手动同步)

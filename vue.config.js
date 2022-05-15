@@ -1,6 +1,14 @@
 module.exports = {
   publicPath: process.env.NODE_ENV === 'production' ? './' : './',
   pluginOptions: {
+    publish: {
+      provider: 'github',
+      repo: 'bao-tool', // git仓库
+      owner: 'Nisus-Liu', // 拥有者
+      releaseType: 'release',
+      vPrefixedTagName: true,
+      publishAutoUpdate: true // 发布自动更新（需要配置GH_TOKEN）。 默认true
+    },
     electronBuilder: {
       nodeIntegration: true,
       builderOptions: {

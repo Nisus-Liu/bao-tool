@@ -4,6 +4,10 @@
   "private": true,
   "description": "开发者界面工具",
   "author": "L&J",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Nisus-Liu/bao-tool.git"
+  },
   "scripts": {
     "serve": "vue-cli-service serve",
     "build": "vue-cli-service build",
@@ -16,7 +20,8 @@
     "postuninstall": "electron-builder install-app-deps",
     "electron:publish": "vue-cli-service electron:build --config electron-builder-conf.js --publish always",
     "dist.bak": "electron-builder --publish onTagOrDraft",
-    "publish": "rimraf dist_electron && vue-cli-service electron:build --publish onTagOrDraft"
+    "publish.bak": "rimraf dist_electron && vue-cli-service electron:build --publish onTagOrDraft",
+    "publish": "rimraf dist_electron && vue-cli-service electron:build --publish always"
   },
   "main": "background.js",
   "dependencies": {
@@ -48,6 +53,7 @@
     "@vue/eslint-config-typescript": "^7.0.0",
     "@vue/test-utils": "^2.0.0-0",
     "cpr": "^3.0.1",
+    "cross-env": "^7.0.3",
     "cross-var": "^1.1.0",
     "electron": "^13.1.7",
     "electron-builder": "^22.11.7",
