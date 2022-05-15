@@ -1,6 +1,6 @@
 {
   "name": "bao-tool",
-  "version": "0.1.1-alpha",
+  "version": "0.1.2-alpha",
   "private": true,
   "description": "开发者界面工具",
   "author": "L&J",
@@ -20,8 +20,8 @@
     "postuninstall": "electron-builder install-app-deps",
     "electron:publish": "vue-cli-service electron:build --config electron-builder-conf.js --publish always",
     "dist.bak": "electron-builder --publish onTagOrDraft",
-    "publish.bak": "rimraf dist_electron && vue-cli-service electron:build --publish onTagOrDraft",
-    "publish": "rimraf dist_electron && vue-cli-service electron:build --publish always"
+    "publish": "rimraf dist_electron && vue-cli-service electron:build --publish onTagOrDraft",
+    "publish.bak": "rimraf dist_electron && vue-cli-service electron:build --publish always"
   },
   "main": "background.js",
   "dependencies": {
