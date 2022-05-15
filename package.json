@@ -21,7 +21,7 @@
     "electron:publish": "vue-cli-service electron:build --config electron-builder-conf.js --publish always",
     "dist.bak": "electron-builder --publish onTagOrDraft",
     "publish.bak": "rimraf dist_electron && vue-cli-service electron:build --publish onTagOrDraft",
-    "publish": "rimraf dist_electron && cross-env GH_TOKEN=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 vue-cli-service electron:build --publish always"
+    "publish": "rimraf dist_electron && vue-cli-service electron:build --publish always"
   },
   "main": "background.js",
   "dependencies": {

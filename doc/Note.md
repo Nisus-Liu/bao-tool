@@ -84,8 +84,6 @@ onMounted(() => {
 
 [记录一次electron开发和持续集成 - 简书](https://www.jianshu.com/p/add047a84e85) (access_token)
 
-[(75条消息) 利用 AppVeyor 实现 GitHub 托管项目的自动化集成_章志强的博客-CSDN博客_appveyor编译](https://blog.csdn.net/zhangzq86/article/details/55657495)
-
 ### 配置
 
 https://www.electron.build/configuration/publish#how-to-publish
@@ -113,14 +111,16 @@ GH_TOKEN 环境变量
 方式1:
 
 ```
-cross-env GH_TOKEN=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
+cross-env GH_TOKEN=xxx
+// or
+set GH_TOKEN=xxx (git token)
 ```
 
 方式2:
 
 ```
 "config": {
-	"GH_TOKEN": "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"
+	"GH_TOKEN": "xxx"
 },
 ```
 
@@ -144,8 +144,6 @@ package.json
 ```
 
 
-
-* 切换成 private 后, HttpError: 401 Unauthorized
 
 
 
