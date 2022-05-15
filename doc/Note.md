@@ -108,6 +108,12 @@ https://ci.appveyor.com/project/Nisus-Liu/bao-tool
 2. 项目代码中配置 `appveyor.yml`.
 3. push 触发 CI/CD
 
+```
+HttpError: 401 Unauthorized
+"method: GET url: https://api.github.com/repos/Nisus-Liu/bao-tool/releases\n\n          Data:\n          {\"message\":\"Bad credentials\",\"documentation_url\":\"https://docs.github.com/rest\"}\n          "
+Headers: {
+...
+```
 
 
 ### npm script 命令方式
@@ -121,7 +127,10 @@ GH_TOKEN 环境变量
 ```
 cross-env GH_TOKEN=xxx
 // or
+// window
 set GH_TOKEN=xxx (git token)
+// Linux | mac
+export GH_TOKEN=xxx
 ```
 
 方式2:
