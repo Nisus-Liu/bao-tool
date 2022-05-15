@@ -98,7 +98,15 @@ https://www.electron.build/configuration/publish#how-to-publish
 ### GH_TOKEN
 
 
-*!! CI 工具貌似需要在 AppVeyor 等平台上操作.* 
+*!! CI 工具需要在 AppVeyor 等平台上操作.* 
+
+#### Appveyor
+
+https://ci.appveyor.com/project/Nisus-Liu/bao-tool
+
+1. 关联目标仓库.
+2. 项目代码中配置 `appveyor.yml`.
+3. push 触发 CI/CD
 
 
 
