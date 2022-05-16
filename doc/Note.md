@@ -1,4 +1,54 @@
 
+```
+yarn global add @vue/cli
+vue create bao-tool
+// 接下来, 用 Vue cli Electron plugin 集成 electron
+vue add electron-builder
+```
+
+
+Tutorial:
+[Vue3+Electron整合方式](https://zhuanlan.zhihu.com/p/181015456)
+
+
+
+```
+// 编译 vue
+npm run build
+// 启动 electron
+npm run start
+```
+
+[EJS -- 嵌入式 JavaScript 模板引擎 | EJS 中文文档](https://ejs.bootcss.com/)
+
+
+
+
+
+## FAQ
+
+* Vue cli Electron plugin
+
+  https://nklayman.github.io/vue-cli-plugin-electron-builder/guide/#installation
+
+    ```
+    vue add electron-builder
+    ```
+
+* vue-router.esm-bundler.js?6c02:3302 ReferenceError: __dirname is not defined
+  at eval (webpack-internal:///./node_modules/electron/index.js:4)
+
+  [vue.js - How fix __dirname not defined when using electron events with Vue? - Stack Overflow](https://stackoverflow.com/questions/62777834/how-fix-dirname-not-defined-when-using-electron-events-with-vue)
+  To solve this I created a file vue.config.js in project root with content
+    ```js
+    module.exports = {
+      pluginOptions: {
+        electronBuilder: {
+          nodeIntegration: true
+        }
+      }
+    }
+    ```
 
 * Do not use "@ts-ignore" because it alters compilation errors  @typescript-eslint/ban-ts-comment
 
@@ -72,6 +122,13 @@ onMounted(() => {
 
   `yarn add make-dir-cli rimraf cpr cross-var -D ` 
 
+* [Error: Cannot cleanup http error:401 unauthorized · Issue #3237 · electron-userland/electron-builder](https://github.com/electron-userland/electron-builder/issues/3237)
+  ```
+  A recent scan found a valid OAuth, GitHub App or personal access token linked to your GitHub account in the content of this commit to Nisus-Liu/bao-tool. 
+  We have revoked the key to protect your data from unauthorized access, and as a consequence, any app using this token won’t be able to authenticate to GitHub.
+  ```
+  原来是, github 发现 commit 中有明文 gh token, 就自动 revoke (废除) 了.
+
 ## 发布
 
 供下载使用.
@@ -83,6 +140,9 @@ onMounted(() => {
 [使用 CI 构建和发布 electron 应用](https://blog.sigoden.com/build-and-publish-electron-app-with-ci/) (应该不错 Travis Linux|Mac; AppVeyor window)
 
 [记录一次electron开发和持续集成 - 简书](https://www.jianshu.com/p/add047a84e85) (access_token)
+
+[Electron-快速构建安装包及自动发布 - 掘金](https://juejin.cn/post/6844904102011338766#heading-4)
+
 
 ### 配置
 
@@ -108,6 +168,14 @@ https://ci.appveyor.com/project/Nisus-Liu/bao-tool
 2. 项目代码中配置 `appveyor.yml`.
 3. push 触发 CI/CD
 
+```
+HttpError: 401 Unauthorized
+"method: GET url: https://api.github.com/repos/Nisus-Liu/bao-tool/releases\n\n          Data:\n          {\"message\":\"Bad credentials\",\"documentation_url\":\"https://docs.github.com/rest\"}\n          "
+Headers: {
+...
+```
+[Error: Cannot cleanup http error:401 unauthorized · Issue #3237 · electron-userland/electron-builder](https://github.com/electron-userland/electron-builder/issues/3237)
+
 
 
 ### npm script 命令方式
@@ -121,7 +189,10 @@ GH_TOKEN 环境变量
 ```
 cross-env GH_TOKEN=xxx
 // or
+// window
 set GH_TOKEN=xxx (git token)
+// Linux | mac
+export GH_TOKEN=xxx
 ```
 
 方式2:
