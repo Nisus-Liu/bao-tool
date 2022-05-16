@@ -123,6 +123,11 @@ onMounted(() => {
   `yarn add make-dir-cli rimraf cpr cross-var -D ` 
 
 * [Error: Cannot cleanup http error:401 unauthorized · Issue #3237 · electron-userland/electron-builder](https://github.com/electron-userland/electron-builder/issues/3237)
+  ```
+  A recent scan found a valid OAuth, GitHub App or personal access token linked to your GitHub account in the content of this commit to Nisus-Liu/bao-tool. 
+  We have revoked the key to protect your data from unauthorized access, and as a consequence, any app using this token won’t be able to authenticate to GitHub.
+  ```
+  原来是, github 发现 commit 中有明文 gh token, 就自动 revoke (废除) 了.
 
 ## 发布
 
@@ -170,6 +175,8 @@ Headers: {
 ...
 ```
 [Error: Cannot cleanup http error:401 unauthorized · Issue #3237 · electron-userland/electron-builder](https://github.com/electron-userland/electron-builder/issues/3237)
+
+
 
 ### npm script 命令方式
 
