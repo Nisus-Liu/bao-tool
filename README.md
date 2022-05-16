@@ -9,3 +9,6 @@ What used:
 * Electron
 * Webpack
 * Scss
+
+
+![demo gif](doc/demo.gif)
