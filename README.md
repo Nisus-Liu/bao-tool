@@ -11,4 +11,4 @@ What used:
 * Scss
 
 
-![demo gif](doc/demo.gif)
+![demo gif](./doc/demo.gif)
